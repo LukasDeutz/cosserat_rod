@@ -103,7 +103,7 @@ class FrameFenics(Frame):
             if getattr(self, key) is None:
                 kwargs[key] = None
             else:                
-                kwargs[key] = f2n(getattr(self, key), key)
+                kwargs[key] = f2n(getattr(self, key)) #, key)
 
         kwargs['t'] = getattr(self, 't')
                             

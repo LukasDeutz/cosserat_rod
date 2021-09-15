@@ -16,34 +16,7 @@ except ModuleNotFoundError:
 FRAME_COMPONENT_KEYS = ['e1', 'e2', 'e3']
 
 #TODO 
-def f2n(var, key):
-    """
-    Fenics to Numpy
-    Returns a numpy array containing fenics function values
-    """
-    if type(var) == list:
-        return np.stack([f2n(v) for v in var])
-    elif type(var) == ListTensor:
-        return np.stack([f2n(project(v)) for v in var])
-
-    fs = var.function_space()
-    dof_maps = _dof_maps(fs)
-    
-    if key in FRAME_COMPONENT_KEYS:
-        pass
-    else:
-        idx1  = dof_maps[:, 1].copy()
-        dof_maps[:, 1] = dof_maps[:, 0]
-        dof_maps[:, 0] = idx1 
-    
-    vec = var.vector().get_local()
-    arr = np.zeros_like(dof_maps, dtype=np.float64)
-    for i in np.ndindex(dof_maps.shape):
-        arr[i] = vec[dof_maps[i]]
-
-    return arr
-
-# def f2n(var: Union[Function, List[Function], ListTensor]) -> np.ndarray:
+# def f2n(var, key):
 #     """
 #     Fenics to Numpy
 #     Returns a numpy array containing fenics function values
@@ -56,9 +29,12 @@ def f2n(var, key):
 #     fs = var.function_space()
 #     dof_maps = _dof_maps(fs)
 #
-#     print('from f2n')
-#     print(dof_maps)
-#     print('\n')
+#     if key in FRAME_COMPONENT_KEYS:
+#         pass
+#     else:
+#         idx1  = dof_maps[:, 1].copy()
+#         dof_maps[:, 1] = dof_maps[:, 0]
+#         dof_maps[:, 0] = idx1 
 #
 #     vec = var.vector().get_local()
 #     arr = np.zeros_like(dof_maps, dtype=np.float64)
@@ -66,6 +42,26 @@ def f2n(var, key):
 #         arr[i] = vec[dof_maps[i]]
 #
 #     return arr
+
+def f2n(var: Union[Function, List[Function], ListTensor]) -> np.ndarray:
+    """
+    Fenics to Numpy
+    Returns a numpy array containing fenics function values
+    """
+    if type(var) == list:
+        return np.stack([f2n(v) for v in var])
+    elif type(var) == ListTensor:
+        return np.stack([f2n(project(v)) for v in var])
+
+    fs = var.function_space()
+    dof_maps = _dof_maps(fs)
+
+    vec = var.vector().get_local()
+    arr = np.zeros_like(dof_maps, dtype=np.float64)
+    for i in np.ndindex(dof_maps.shape):
+        arr[i] = vec[dof_maps[i]]
+
+    return arr
 
 
 def v2f(

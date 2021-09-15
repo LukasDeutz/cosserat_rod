@@ -9,8 +9,7 @@ from fenics import *
 # Local imports
 from cosserat_rod.util import f2n, v2f, expand_numpy
 
-CONTROL_KEYS = ['alpha', 'beta', 'gamma', 'mu']
-
+CONTROL_KEYS = ['Omega', 'sigma']
 
 class Controls(ABC):
     """
@@ -19,36 +18,26 @@ class Controls(ABC):
 
     def __init__(
             self,
-            alpha=None,
-            beta=None,
-            gamma=None,
-            mu=None,
-            worm: 'Worm' = None
-    ):
-        if worm is None:
-            # If no worm object passed then require all controls to be defined
-            assert all(abgm is not None for abgm in [alpha, beta, gamma, mu])
-        else:
-            # Otherwise, require no controls to be passed
-            assert all(abgm is None for abgm in [alpha, beta, gamma, mu])
-            alpha, beta, gamma, mu = self._init_parameters(worm)
-
-        self.alpha = alpha
-        self.beta = beta
-        self.gamma = gamma
-        self.mu = mu
-        self._check_shapes()
+            Omega = None,
+            sigma = None,
+            worm: 'Worm' = None,
+        ):
         
-
+        
+        if worm is None:
+            assert all(x is not None for x in [Omega, sigma])
+        else:                    
+            Omega, sigma = self._init_parameters(worm)
+        
+        self.Omega = Omega
+        self.sigma = sigma
+        
+        #self._check_shapes()
+        
+        return
+                
     @abstractmethod
-    def _init_parameters(self, worm: 'Worm') -> Tuple:
-        """
-        Return alpha, beta, gamma in appropriate format.
-        """
-        pass
-
-    @abstractmethod
-    def _check_shapes(self):
+    def _init_parameters(self, worm: 'Worm') -> Tuple:        
         pass
 
     @abstractmethod
@@ -63,37 +52,30 @@ class Controls(ABC):
 class ControlsFenics(Controls):
     def __init__(
             self,
-            alpha: Function = None,
-            beta: Function = None,
-            gamma: Function = None,
-            mu: Function = None,
-            worm: 'Worm' = None,
+            Omega=None,
+            sigma=None,
+            worm=None
     ):
-        super().__init__(alpha, beta, gamma, mu, worm)
-
+        super().__init__(Omega, sigma, worm)
+        
+                
     def _init_parameters(self, worm: 'Worm') -> Tuple[Function, Function, Function, Function]:
         """
         Use default parameters as set in the base Worm instance.
-        """
-        alpha = v2f(val=worm.alpha_pref_default, fs=worm.V, name='alpha')
-        beta  = v2f(val=worm.beta_pref_default, fs=worm.V, name='beta')
-        gamma = v2f(val=worm.gamma_pref_default, fs=worm.Q, name='gamma')
-        mu    = v2f(val=worm.mu_pref_default, fs=worm.V, name='mu')
-        return alpha, beta, gamma, mu
-
-    def _check_shapes(self):
-        assert self.alpha.function_space() == self.beta.function_space(), 'Function spaces differ from alpha to beta'
-        # todo: check gamma?
-        # todo: check mu?
+        """     
+        Omega = Function(self.worm.func_space_dict['Omega'])
+        sigma = Function(self.worm.func_space_dict['sigma'])
+        
+        Omega.assign(Expression(('0','0', '0'), degree = 1))
+        sigma.assign(Expression(('0','0', '0'), degree = 1))
+                                                                                                 
+        return Omega, sigma
 
     def clone(self) -> 'ControlsFenics':
-        V = self.alpha.function_space()
-        Q = self.gamma.function_space()
+                                
         return ControlsFenics(
-            alpha=project(self.alpha, V),
-            beta=project(self.beta, V),
-            gamma=project(self.gamma, Q),
-            mu=project(self.mu, V)
+            Omega=self.Omega.copy(deepcopy=True),
+            sigma=self.sigma.copy(deepcopy=True)
         )
 
     def __eq__(self, other: 'ControlsFenics') -> bool:
@@ -102,48 +84,43 @@ class ControlsFenics(Controls):
         c2 = other.to_numpy()
         return c1 == c2
 
-    def to_numpy(self) -> 'ControlsNumpy':
-            return ControlsNumpy(
-                alpha=f2n(self.alpha),
-                beta=f2n(self.beta),
-                gamma=f2n(self.gamma),
-                mu=f2n(self.mu)
+    def to_numpy(self, worm) -> 'ControlsNumpy':
+                                                    
+        return ControlsNumpy(
+            Omega=f2n(self.Omega),
+            sigma=f2n(self.sigma)
             )
 
-
 class ControlsNumpy(Controls):
-    def __init__(
-            self,
-            alpha: np.ndarray = None,
-            beta: np.ndarray = None,
-            gamma: np.ndarray = None,
-            mu: np.ndarray = None,
+    
+    def __init__(self,
             worm: 'Worm' = None,
+            Omega=None,
+            sigma = None
+            
     ):
-        super().__init__(alpha, beta, gamma, mu, worm)
+        super().__init__(Omega, sigma, worm)
+
+        # require all controls to be defined
+
 
     def _init_parameters(self, worm: 'Worm') -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Default forces to empty arrays.
         """
-        alpha = np.zeros(worm.N)
-        beta  = np.zeros(worm.N)
-        gamma = np.zeros(worm.N - 1)
-        mu    = np.zeros(worm.N - 1)
+        Omega = np.zeros((3, worm.N))
+        sigma = np.zeros((3, worm.N))
         
-        return alpha, beta, gamma, mu
+        return Omega, sigma
 
     def _check_shapes(self):
-        assert self.alpha.shape == self.beta.shape
-        assert self.alpha.shape[-1] == self.mu.shape[-1] + 1
-        assert self.alpha.shape[-1] == self.gamma.shape[-1] + 1
+                
+        assert self.Omega.shape == self.sigma.shape
         
     def clone(self) -> 'ControlsNumpy':
         return ControlsNumpy(
-            alpha=self.alpha.copy(),
-            beta=self.beta.copy(),
-            gamma=self.gamma.copy(),
-            mu=self.mu.copy()
+            Omega=self.Omega.copy(),
+            sigma=self.sigma.copy()
         )
 
     def to_fenics(self, worm: 'Worm') -> ControlsFenics:
@@ -151,10 +128,11 @@ class ControlsNumpy(Controls):
         Convert to Fenics
         """
         return ControlsFenics(
-            alpha=v2f(self.alpha, fs=worm.V, name='alpha'),
-            beta=v2f(self.beta, fs=worm.V, name='beta'),
-            gamma=v2f(self.gamma, fs=worm.Q, name='gamma'),
-            mu=v2f(self.mu, fs=worm.Q, name='mu')
+            Omega=v2f(self.Omega, fs=worm.V3, name='Omega'),
+            phi=v2f(self.phi, fs=worm.V, name='phi'),
+            theta=v2f(self.theta, fs=worm.V, name='theta'),
+            nu=v2f(self.nu, fs=worm.V, name='nu'),
+            sigma=v2f(self.nu, fs=worm.V3, name='sigma')
         )
 
     def __eq__(self, other: 'ControlsNumpy') -> bool:
@@ -168,10 +146,8 @@ class ControlSequence(ABC):
     def __init__(
             self,
             controls: Union[Controls, List[Controls]] = None,
-            alpha=None,
-            beta=None,
-            gamma=None,
-            mu = None,
+            Omega=None,
+            sigma=None,
             worm: 'Worm' = None,
             n_timesteps: int = 1
     ):
@@ -179,20 +155,20 @@ class ControlSequence(ABC):
             # If no worm object passed then require all controls to be defined
             if controls is not None:
                 # ..either with controls and no abgm
-                assert all(abgm is None for abgm in [alpha, beta, gamma, mu])
+                assert all(x is None for x in [Omega, sigma])
                 if type(controls) == list:
                     # Controls are given as a time-indexed list
                     controls = self._generate_sequence_from_list(controls)
                 else:
                     # Controls are just a single example which will need expanding
-                    controls = self._generate_sequence_from_controls(controls, n_timesteps)
+                    controls = self._generate_sequence_from_control(controls, n_timesteps)
             else:
                 # ..or in component form, with no control list
-                assert all(abgm is not None for abgm in [alpha, beta, gamma, mu])
-                assert len(alpha) == len(beta) == len(gamma)
-                controls = self._generate_sequence_from_components(alpha, beta, gamma, mu)
+                assert all(x is not None for x in [Omega, sigma])
+                assert len(Omega) == len(sigma)
+                controls = self._generate_sequence_from_components(Omega, sigma)
         else:
-            assert controls is None and all(abgm is None for abgm in [alpha, beta, gamma, mu])
+            assert controls is None and all(x is None for x in [Omega, sigma])
             controls = self._generate_default_controls(worm, n_timesteps)
 
         self.controls = controls
@@ -202,7 +178,7 @@ class ControlSequence(ABC):
         pass
 
     @abstractmethod
-    def _generate_sequence_from_controls(self, C: Controls, n_timesteps: int):
+    def _generate_sequence_from_control(self, C: Controls, n_timesteps: int):
         pass
 
     @abstractmethod
@@ -238,20 +214,18 @@ class ControlSequenceFenics(ControlSequence):
     def __init__(
             self,
             controls: Union[ControlsFenics, List[ControlsFenics]] = None,
-            alpha: List[Function] = None,
-            beta: List[Function] = None,
-            gamma: List[Function] = None,
-            mu: List[Function] = None,
+            Omega: List[Function] = None,
+            sigma: List[Function] = None,            
             worm: 'Worm' = None,
             n_timesteps: int = 1
     ):
-        super().__init__(controls, alpha, beta, gamma, mu, worm, n_timesteps)
+        super().__init__(controls, Omega, sigma, worm, n_timesteps)
 
     def _generate_sequence_from_list(self, C: List[ControlsFenics]) -> List[ControlsFenics]:
         # A ControlSequence in fenics is just a list of Controls objects
         return C
 
-    def _generate_sequence_from_controls(self, C: ControlsFenics, n_timesteps: int):
+    def _generate_sequence_from_control(self, C: ControlsFenics, n_timesteps: int):
         '''Controls are just a single example which will need expanding'''
         args = {k: getattr(C, k) for k in CONTROL_KEYS}
         Cs = [
@@ -262,18 +236,16 @@ class ControlSequenceFenics(ControlSequence):
 
     def _generate_sequence_from_components(
             self,
-            alpha: List[Function],
-            beta: List[Function],
-            gamma: List[Function]
+            Omega: List[Function],
+            sigma: List[Function],
 ) -> List[ControlsFenics]:
         '''Controls are in component form, with no control list'''
         Cs = [
             ControlsFenics(
-                alpha=alpha[t],
-                beta=beta[t],
-                gamma=gamma[t]
+                Omega=Omega[t],
+                sigma=sigma[t],
             )
-            for t in range(len(alpha))
+            for t in range(len(Omega))
         ]
         return Cs
 
@@ -310,14 +282,12 @@ class ControlSequenceNumpy(ControlSequence):
     def __init__(
             self,
             controls: Union[ControlsNumpy, List[ControlsNumpy]] = None,
-            alpha: np.ndarray = None,
-            beta: np.ndarray = None,
-            gamma: np.ndarray = None,
-            mu: np.ndarray = None,
+            Omega: np.ndarray = None,
+            sigma: np.ndarray = None,
             worm: 'Worm' = None,
             n_timesteps: int = 1
     ):
-        super().__init__(controls, alpha, beta, gamma, mu, worm, n_timesteps)
+        super().__init__(controls, Omega, sigma, worm, n_timesteps)
 
     def _generate_sequence_from_list(self, C: List[ControlsNumpy]) -> dict:
         n_timesteps = len(C)
@@ -326,7 +296,7 @@ class ControlSequenceNumpy(ControlSequence):
             for k in CONTROL_KEYS
         }
 
-    def _generate_sequence_from_controls(self, C: ControlsNumpy, n_timesteps: int) -> dict:
+    def _generate_sequence_from_control(self, C: ControlsNumpy, n_timesteps: int) -> dict:
         # Expand controls across all timesteps
         Cs = {
             k: expand_numpy(getattr(C, k), n_timesteps)
