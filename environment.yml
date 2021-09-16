@@ -1,0 +1,11 @@
+name: cosserat_rod
+
+channels:
+  - conda-forge
+  - pytorch
+
+dependencies:
+  - python = 3.9
+  - fenics = 2019.1.0
+  - numpy = 1.19
+  - scikit-learn = 0.24
