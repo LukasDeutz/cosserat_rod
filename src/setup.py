@@ -1,12 +1,12 @@
 from setuptools import setup
 
 setup(
-    name='simple_worm',
+    name='cosserat_rod',
     version='0.0.1',
     description='Python implementation of numerical method for visco-elastic rods.',
-    author='Tom Ranner, Tom Ilett',
-    url='https://gitlab.com/tom-ranner/simple-worm',
-    packages=['simple_worm'],
+    author='Tom Ranner, Tom Ilett', 'Lukas Deutz',
+    url='https://github.com/LukasDeutz/cosserat_rod',
+    packages=['cosserat_rod'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest'],
     install_requires=[
