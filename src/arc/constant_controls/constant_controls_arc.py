@@ -13,6 +13,7 @@ from cosserat_rod.controls import ControlsFenics, ControlSequenceFenics
 from cosserat_rod.rod import Rod, grad
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
+from scipy.io.matlab.tests.test_mio import theta
 
 data_path = '../../../data/constant_controls/'
 
@@ -79,12 +80,12 @@ def simulate_constant_controls(N, dt, T, stretch = False, shear = False):
     else:
         nu = 1.0        
     if shear:
-        #TODO
-        phi = 0.0
+        theta = 10.0/360 * 2 * np.pi        
+        theta = Expression('theta_max*(1 - sin(2*pi*x[0])', degree = 1, theta = theta)
+        phi = Expression('2*pi*x[0]', degree = 1)    
+    else:           
         theta = 0.0
-    else:   
         phi = 0.0
-        theta = 0.0
     
     sigma_expr = Expression(('-nu*cos(phi)*sin(theta)', '-nu*sin(phi)*sin(theta)', '1 - nu*cos(theta)'), 
                        degree = 1,

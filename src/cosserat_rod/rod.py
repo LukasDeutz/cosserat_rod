@@ -8,6 +8,7 @@ from scipy.sparse.linalg import gmres
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
 from cosserat_rod.frame import FrameFenics, FrameSequenceFenics
+from copy import deepcopy
 
 
 def grad(function): return Dx(function, 0)
@@ -251,8 +252,7 @@ class Rod():
         return
         
     def _init_form_for_picard(self):
-        
-        
+                
         # These are the functions from the previous time step which are used in the discretized 
         # time derivatives. They will not be updated during picard iteration!                
         self.x_tilde_n   = Function(self.V3)
@@ -439,7 +439,7 @@ class Rod():
             elif self.solver.linearization_method == 'picard_iteration':
                 u = self._solve_picard_iteration()
 
-            _, _, x, Ome, sig, w = u.split()
+            _, _, x, Ome, sig, w = u.split(deepcopy = True)
 
             self.u_n.assign(u) 
             self.check_for_nans()

@@ -4,10 +4,10 @@ echo "$N $dt"
 #$ -cwd -V
 # Email at the beginning and end of the job
 #$ -m be
-# Request 1G RAM
-#$ -l h_vmem=1G
+# Request 10G RAM
+#$ -l h_vmem=10G
 # Request 10 min of runtime
-#$ -l h_rt=00:10:00
+#$ -l h_rt=02:00:00
 
 source ~/.bashrc
 

@@ -81,17 +81,34 @@ class FrameFenics(Frame):
         return FrameFenics(**kwargs)
             
     def update(self, x, e1, e2, e3, Omega, sigma, w, F = None, M = None, t = None):
-        
-        self.x  = x
+                
+        self.x = x
         self.e1 = e1
         self.e2 = e2
         self.e3 = e3
         self.Omega = Omega
         self.sigma = sigma
-        self.t = t
         self.w = w
-        self.F = F
-        self.M = M
+                
+        # self.x.assign(x)
+        # self.e1.assign(e1)
+        # self.e2.assign(e2)
+        # self.e3.assign(e3)
+        # self.Omega.assign(Omega)
+        # self.sigma.assign(sigma)
+        # self.w.assign(w)
+        
+        # if F is None:
+        #     self.F = F
+        # else:
+        #     self.F.assign(F)
+        #
+        # if M is None:
+        #     self.M = M
+        # else:
+        #     self.M.assign(M)
+            
+        self.t = t
                 
         return 
              
@@ -187,7 +204,7 @@ class FrameSequence(ABC):
         else:
             # Build sequence from components - at a minimum this must include x
             assert x is not None
-            frames = self._generate_sequence_from_components(x, e0, e1, e2, Omega, sigma, w, M, F)
+            frames = self._generate_sequence_from_components(x, e1, e2, e3, Omega, sigma, w, M, F)
 
         self.frames = frames
         self.model_parameters = model_parameters

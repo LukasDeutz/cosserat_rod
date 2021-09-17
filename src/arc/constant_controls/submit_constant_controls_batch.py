@@ -12,6 +12,3 @@ if __name__ == '__main__':
     
         # qsub submit_constant_controls N dt
         subprocess.call(f'qsub submit_constant_controls.sh {N} {dt} {T}', shell = True)
-
-    
- 

@@ -148,14 +148,21 @@ def test_constant_twist():
     
     rod = Rod(N, dt, model_parameters, solver)
 
+    n = int(T/dt)
         
     Ome3 = 2.*np.pi
                                 
-    Omega = Expression(("0", "0", f"{Ome3}"), degree=1)
-    sigma = Expression(("0", "0", "0"), degree=1)
+    Omega_expr = Expression(("0", "0", f"{Ome3}"), degree=1)
+    sigma_expr = Expression(("0", "0", "0"), degree=1)
+
+    Omega = Function(rod.function_spaces['Omega'])
+    Omega.assign(Omega_expr)
+    
+    sigma = Function(rod.function_spaces['sigma'])
+    sigma.assign(sigma_expr)
                 
-    CS['Omega'] = Omega
-    CS['sigma'] = sigma
+    C = ControlsFenics(Omega, sigma)
+    CS = ControlSequenceFenics(C, n_timesteps = n)
 
     FS = rod.solve(T, CS)
 
@@ -262,9 +269,9 @@ if __name__ == '__main__':
     print('Run test for the cosserat rod \n')    
     #test_zero_controls()        
     #test_constant_stretch()    
-    #test_constant_twist()        
+    test_constant_twist()        
     #test_constant_bend()
-    test_constant_shear()
+    #test_constant_shear()
     
     #calc_strain_vector_for_constant_bend()
     
