@@ -14,8 +14,7 @@ from cosserat_rod.rod import Rod, grad
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
 
-data_path = '../../data/tests/constant_controls/'
-fig_path = '../../fig/tests/constant_controls/'
+data_path = '../../../data/constant_controls/'
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
 solver = Solver(linearization_method = 'picard_iteration')
