@@ -11,7 +11,7 @@ if __name__ == '__main__':
     for (N,dt) in product(N_arr, dt_arr):
     
         # qsub submit_constant_controls N dt
-        subprocess.call(f'qsub bash_submit_constant_controls.sh {N} {dt} {T}', shell = True)
+        subprocess.call(f'qsub submit_constant_controls.sh {N} {dt} {T}', shell = True)
 
     
  
