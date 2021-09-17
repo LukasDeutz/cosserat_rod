@@ -2,8 +2,8 @@
 from itertools import product
 import subprocess
 
-N_arr  = [50]
-dt_arr = [1e-1]
+N_arr  = [50, 100, 250, 500]
+dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 T = 3.0
 
 if __name__ == '__main__':
