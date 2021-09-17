@@ -1,3 +1,5 @@
+import argparse
+
 # Build-in imports
 from os.path import abspath
 
@@ -5,25 +7,15 @@ from os.path import abspath
 from fenics import Expression, sqrt, dot, assemble, dx
 import numpy as np
 import pickle 
-from itertools import product
 
 # Local imports
 from cosserat_rod.controls import ControlsFenics, ControlSequenceFenics
 from cosserat_rod.rod import Rod, grad
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
-from tests import constant_controls
-
-# N_arr  = [50, 100, 250, 500]
-# dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 
 data_path = '../../data/tests/constant_controls/'
 fig_path = '../../fig/tests/constant_controls/'
-
-N  = 50
-dt = 1e-2
-
-T = 2.0
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
 solver = Solver(linearization_method = 'picard_iteration')
@@ -72,7 +64,8 @@ def calculate_elastic_energy(FS, CS, rod):
     
     return
 
-def test_constant_controls():
+
+def simulate_constant_controls(N, dt, T):
     
     print('Test constant controls for different combinations of N and dt')
     
@@ -93,18 +86,27 @@ def test_constant_controls():
     
     FS = rod.solve(T, CS)        
     print('Done!')
-    
+        
     calculate_elastic_energy(FS, CS, rod)
     
     print('Finished all simulations!')
-        
-    return
+
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('N', type=int)
+    parser.add_argument('dt', type=float)
+    parser.add_argument('T', type=float)
     
-    test_constant_controls()
-
-
+    args = parser.parse_args()
+    N  = args.N
+    dt = args.dt
+    T  = args.T
+    
+    simulate_constant_controls(N, dt, T)
+    
+    
 
 
 

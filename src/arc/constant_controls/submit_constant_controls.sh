@@ -1,4 +1,5 @@
 #!/bin/bash
+echo "$N $dt"
 # Set current working directory, use current env vars and modules
 #$ -cwd -V
 # Email at the beginning and end of the job
@@ -14,4 +15,4 @@ source ~/.bashrc
 conda activate cosserat_rod
 
 # Run scripy
-python constant_controls.py
+python constant_controls_arc.py $1 $2 $3
