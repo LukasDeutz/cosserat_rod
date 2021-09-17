@@ -14,4 +14,4 @@ source ~/.bashrc
 conda activate cosserat_rod
 
 # Run scripy
-constant_controls.py
+python constant_controls.py
