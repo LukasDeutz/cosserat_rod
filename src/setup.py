@@ -4,7 +4,7 @@ setup(
     name='cosserat_rod',
     version='0.0.1',
     description='Python implementation of numerical method for visco-elastic rods.',
-    author='Tom Ranner, Tom Ilett', 'Lukas Deutz',
+    author='Tom Ranner, Tom Ilett, Lukas Deutz',
     url='https://github.com/LukasDeutz/cosserat_rod',
     packages=['cosserat_rod'],
     setup_requires=['pytest-runner'],
