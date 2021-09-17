@@ -1,9 +1,10 @@
-# Third party imports
+# Build-in imports
 from os.path import abspath
-from fenics import Expression, sqrt, dot, assemble, dx
+
+# Third party imports
+from fenics import Expression, sqrt, dot, assemble, dx, Function
 import numpy as np
 import pickle 
-from itertools import product
 import matplotlib.pyplot as plt
 
 # Local imports
@@ -11,21 +12,14 @@ from cosserat_rod.controls import ControlsFenics, ControlSequenceFenics
 from cosserat_rod.rod import Rod, grad
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
+from cosserat_rod.plot3d import generate_interactive_scatter_clip, plot_strains
+
 
 # N_arr  = [50, 100, 250, 500]
 # dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 
 data_path = '../../data/tests/constant_controls/'
 fig_path = '../../fig/tests/constant_controls/'
-
-
-N_arr  = [50, 100, 250] 
-dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
-
-# N_arr  = [250] 
-# dt_arr = [1e-4]
-
-T = 2.0
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
 solver = Solver(linearization_method = 'picard_iteration')
@@ -74,36 +68,59 @@ def calculate_elastic_energy(FS, CS, rod):
     
     return
 
-def test_constant_controls():
+def test_constant_controls(N, dt, T, stretch = False, shear = False):
     
-    print('Test constant controls for different combinations of N and dt')
+    print(f'Simulate constant controls for N={N} and dt={dt}')
+            
+    n = int(T/dt)        
+    rod = Rod(N, dt, model_parameters = model_parameters, solver = solver)
     
-    Omega_pref = Expression(("2.0*sin(3*pi*x[0]/2)", 
+    Omega_expr = Expression(("2.0*sin(3*pi*x[0]/2)", 
                              "3.0*cos(3*pi*x[0]/2)",
                              "5.0*cos(2*pi*x[0])"), 
                              degree=1)    
     
-    sigma_pref = Expression(('0', '0', '0'), degree = 1)
+    if stretch:
+        nu = Expression('1 + 0.5*cos(2*pi*pi*x[0])', degree = 1)        
+    else:
+        nu = 1.0        
+    if shear:
+        theta = 10.0/360 * 2 * np.pi        
+        theta = Expression('theta_max*(1 - sin(2*pi*x[0])', degree = 1, theta = theta)
+        phi = Expression('2*pi*x[0]', degree = 1)        
+    else:   
+        phi = 0.0
+        theta = 0.0
     
-    for N, dt in product(N_arr, dt_arr):
-        print(f'Simulate constant controls for N={N} and dt={dt}')
-                
-        n = int(T/dt)        
-        rod = Rod(N, dt, model_parameters = model_parameters, solver = solver)
+    sigma_expr = Expression(('-nu*cos(phi)*sin(theta)', '-nu*sin(phi)*sin(theta)', '1 - nu*cos(theta)'), 
+                       degree = 1,
+                       nu = nu,
+                       phi = phi,
+                       theta = theta)
+                            
+
+    if not stretch and not shear:
+        sigma_expr = Expression(('0', '0', '0'))
+
+
+    Omega = Function(rod.function_spaces['Omega'])
+    Omega.assign(Omega_expr)
     
-        C = ControlsFenics(Omega_pref, sigma_pref)
-        CS = ControlSequenceFenics(C, n_timesteps=n)
-        
-        FS = rod.solve(T, CS)        
-        print('Done!')
-        
-        calculate_elastic_energy(FS, CS, rod)
+    sigma = Function(rod.function_spaces['sigma'])
+    sigma.assign(sigma_expr)
+
+    C = ControlsFenics(Omega, sigma)
+    CS = ControlSequenceFenics(C, n_timesteps=n)
     
-    print('Finished all simulations!')
+    FS = rod.solve(T, CS)        
     
+    generate_interactive_scatter_clip(FS.to_numpy(), 200)    
+            
+    calculate_elastic_energy(FS, CS, rod)
     
+    print('Finished simulation!')
     
-def plot_elastic_energies(suffix = 'zero_sigma'):
+def plot_elastic_energies(N_arr, dt_arr, suffix = 'zero_sigma'):
 
     print('Plot elastic energies')
 
@@ -165,9 +182,14 @@ def plot_elastic_energies(suffix = 'zero_sigma'):
     print('Finished plotting!\n')
 
 if __name__ == '__main__':
-        
-    #test_constant_controls()
-    plot_elastic_energies()
+
+    N = 50
+    dt = 1e-2
+    T = 3.0
+
+    test_constant_controls(N, dt, T, stretch = True)
+    
+    #plot_elastic_energies()
     
         
 

@@ -4,7 +4,7 @@ import argparse
 from os.path import abspath
 
 # Third party imports
-from fenics import Expression, sqrt, dot, assemble, dx
+from fenics import Function, Expression, sqrt, dot, assemble, dx
 import numpy as np
 import pickle 
 
@@ -64,32 +64,56 @@ def calculate_elastic_energy(FS, CS, rod):
     return
 
 
-def simulate_constant_controls(N, dt, T):
+def simulate_constant_controls(N, dt, T, stretch = False, shear = False):
     
-    print('Test constant controls for different combinations of N and dt')
-    
-    Omega_pref = Expression(("2.0*sin(3*pi*x[0]/2)", 
+    print(f'Simulate constant controls for N={N} and dt={dt}')
+        
+    Omega_expr = Expression(("2.0*sin(3*pi*x[0]/2)", 
                              "3.0*cos(3*pi*x[0]/2)",
                              "5.0*cos(2*pi*x[0])"), 
                              degree=1)    
     
-    sigma_pref = Expression(('0', '0', '0'), degree = 1)
+
+    if stretch:
+        nu = Expression('1 + 0.5*cos(2*pi*pi*x[0])', degree = 1)        
+    else:
+        nu = 1.0        
+    if shear:
+        #TODO
+        phi = 0.0
+        theta = 0.0
+    else:   
+        phi = 0.0
+        theta = 0.0
     
-    print(f'Simulate constant controls for N={N} and dt={dt}')
-            
+    sigma_expr = Expression(('-nu*cos(phi)*sin(theta)', '-nu*sin(phi)*sin(theta)', '1 - nu*cos(theta)'), 
+                       degree = 1,
+                       nu = nu,
+                       phi = phi,
+                       theta = theta)
+    
+    if not stretch and not shear:
+        sigma_expr = Expression(('0', '0', '0'), degree = 1)
+                
     n = int(T/dt)        
     rod = Rod(N, dt, model_parameters = model_parameters, solver = solver)
 
-    C = ControlsFenics(Omega_pref, sigma_pref)
+    Omega = Function(rod.function_spaces['Omega'])
+    Omega.assign(Omega_expr)
+    
+    sigma = Function(rod.function_spaces['sigma'])
+    sigma.assign(sigma_expr)
+    
+    C = ControlsFenics(Omega, sigma)
     CS = ControlSequenceFenics(C, n_timesteps=n)
     
     FS = rod.solve(T, CS)        
-    print('Done!')
         
     calculate_elastic_energy(FS, CS, rod)
     
-    print('Finished all simulations!')
-
+    print('Finished simulations!')
+    
+    return
 
 if __name__ == '__main__':
 
@@ -103,7 +127,7 @@ if __name__ == '__main__':
     dt = args.dt
     T  = args.T
     
-    simulate_constant_controls(N, dt, T)
+    simulate_constant_controls(N, dt, T, stretch = True)
     
     
 
