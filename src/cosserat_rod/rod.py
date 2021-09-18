@@ -439,7 +439,7 @@ class Rod():
             elif self.solver.linearization_method == 'picard_iteration':
                 u = self._solve_picard_iteration()
 
-            _, _, x, Ome, sig, w = u.split(deepcopy = True)
+            _, _, x, Ome, sig, w = u.split()
 
             self.u_n.assign(u) 
             self.check_for_nans()
