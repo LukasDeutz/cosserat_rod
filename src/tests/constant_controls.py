@@ -24,7 +24,7 @@ fig_path = '../../fig/tests/constant_controls/'
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
 solver = Solver(linearization_method = 'picard_iteration')
 
-def calculate_elastic_energy(FS, CS, rod):
+def calculate_elastic_energy(FS, CS, rod, stretch, shear):
 
     print('Calculate elastic energy from simulation results.')
 
@@ -60,7 +60,10 @@ def calculate_elastic_energy(FS, CS, rod):
     all_E['N']  = N
     all_E['dt'] = dt
     
-    file_path = data_path + f'elastic_energies_zero_sigma_N={N}_dt_{dt}.dat'
+    stretch = str(stretch)[0]
+    shear   = str(shear)[0]
+     
+    file_path = data_path + f'elastic_energies_stretch={stretch}_shear={shear}_N={N}_dt_{dt}.dat'
     
     pickle.dump(all_E, open(file_path, 'wb'))
     
@@ -85,8 +88,8 @@ def test_constant_controls(N, dt, T, stretch = False, shear = False):
     else:
         nu = 1.0        
     if shear:
-        theta = 10.0/360 * 2 * np.pi        
-        theta = Expression('theta_max*(1 - sin(2*pi*x[0])', degree = 1, theta = theta)
+        theta_max = 10.0/360 * 2 * np.pi        
+        theta = Expression('theta_max*(1 - sin(2*pi*x[0]))', degree = 1, theta_max = theta_max)
         phi = Expression('2*pi*x[0]', degree = 1)        
     else:   
         phi = 0.0
@@ -116,7 +119,7 @@ def test_constant_controls(N, dt, T, stretch = False, shear = False):
     
     generate_interactive_scatter_clip(FS.to_numpy(), 200)    
             
-    calculate_elastic_energy(FS, CS, rod)
+    calculate_elastic_energy(FS, CS, rod, stretch, shear)
     
     print('Finished simulation!')
     
@@ -187,7 +190,7 @@ if __name__ == '__main__':
     dt = 1e-2
     T = 3.0
 
-    test_constant_controls(N, dt, T, stretch = True)
+    test_constant_controls(N, dt, T, stretch = True, shear = True)
     
     #plot_elastic_energies()
     

@@ -82,12 +82,12 @@ def simulate_constant_controls(N, dt, T, stretch = False, shear = False):
     else:
         nu = 1.0        
     if shear:
-        theta = 10.0/360 * 2 * np.pi        
-        theta = Expression('theta_max*(1 - sin(2*pi*x[0])', degree = 1, theta = theta)
-        phi = Expression('2*pi*x[0]', degree = 1)    
+        theta_max = 10.0/360 * 2 * np.pi        
+        theta = Expression('theta_max*(1 - sin(2*pi*x[0]))', degree = 1, theta_max = theta_max)
+        phi = Expression('2*pi*x[0]', degree = 1)        
     else:           
+        phi = 0.0    
         theta = 0.0
-        phi = 0.0
     
     sigma_expr = Expression(('-nu*cos(phi)*sin(theta)', '-nu*sin(phi)*sin(theta)', '1 - nu*cos(theta)'), 
                        degree = 1,
