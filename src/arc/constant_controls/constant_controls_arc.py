@@ -13,14 +13,13 @@ from cosserat_rod.controls import ControlsFenics, ControlSequenceFenics
 from cosserat_rod.rod import Rod, grad
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
-from scipy.io.matlab.tests.test_mio import theta
 
 data_path = '../../../data/constant_controls/'
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
 solver = Solver(linearization_method = 'picard_iteration')
 
-def calculate_elastic_energy(FS, CS, rod):
+def calculate_elastic_energy(FS, CS, rod, shear, stretch):
 
     print('Calculate elastic energy from simulation results.')
 
@@ -56,7 +55,10 @@ def calculate_elastic_energy(FS, CS, rod):
     all_E['N']  = N
     all_E['dt'] = dt
     
-    file_path = data_path + f'elastic_energies_zero_sigma_N={N}_dt_{dt}.dat'
+    shear = str(shear)[0]
+    stretch = str(stretch)[0]
+    
+    file_path = data_path + f'elastic_energies_stretch={stretch}_shear={shear}_N={N}_dt_{dt}.dat'
     
     pickle.dump(all_E, open(file_path, 'wb'))
     
@@ -110,7 +112,7 @@ def simulate_constant_controls(N, dt, T, stretch = False, shear = False):
     
     FS = rod.solve(T, CS)        
         
-    calculate_elastic_energy(FS, CS, rod)
+    calculate_elastic_energy(FS, CS, rod, stretch, shear)
     
     print('Finished simulations!')
     
@@ -128,7 +130,7 @@ if __name__ == '__main__':
     dt = args.dt
     T  = args.T
     
-    simulate_constant_controls(N, dt, T, stretch = True)
+    simulate_constant_controls(N, dt, T, stretch = True, shear=True)
     
     
 
