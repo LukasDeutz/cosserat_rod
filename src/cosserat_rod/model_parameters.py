@@ -33,9 +33,8 @@ class ModelParameters:
 
         if self.external_force == 'resistive_force':
             if not type(K) == float:
-                self.K = 40. 
-            # 
-            assert self.K > 0
+                K = 40.              
+            assert K > 0
                             
         self.K = K
         self.K_rot = K_rot

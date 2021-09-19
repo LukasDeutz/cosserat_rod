@@ -276,10 +276,10 @@ class Rod():
 
         if self.model_parameters.external_force == 'linear_drag':            
             KK = self.K         
-        elif self.model_parameters.external_force == 'resistive_force':             
-            tautau = outer(tau_n, tau_n)
-            P = Identity(3) - tautau            
-            KK = self.K*P + tautau
+        elif self.model_parameters.external_force == 'resistive_force':                         
+            tautau_n = outer(tau_n, tau_n)
+            P_n = Identity(3) - tautau_n            
+            KK = self.K*P_n + tautau_n
 
         self.Q = outer(self.e1, self.E1) + outer(self.e2, self.E2) + outer(self.e3, self.E3)
        
@@ -306,7 +306,7 @@ class Rod():
     def _init_form(self):
 
         if self.solver.linearization_method == 'simple':
-            self._init_linearized_form()
+            self._init_form_simple()
         elif self.solver.linearization_method == 'picard_iteration':
             self._init_form_for_picard()
         elif self.solver.linearization_method == 'newton':

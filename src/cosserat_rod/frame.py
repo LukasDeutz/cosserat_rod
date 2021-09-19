@@ -187,7 +187,7 @@ class FrameSequence(ABC):
         else:
             # Build sequence from components - at a minimum this must include x
             assert x is not None
-            frames = self._generate_sequence_from_components(x, e0, e1, e2, Omega, sigma, w, M, F)
+            frames = self._generate_sequence_from_components(x, e1, e2, e3, Omega, sigma, w, M, F)
 
         self.frames = frames
         self.model_parameters = model_parameters
@@ -197,13 +197,17 @@ class FrameSequence(ABC):
         pass
 
     @abstractmethod
-    def _generate_sequence_from_components(self, x, e0, e1, e2, Omega, sigma, w, M, F):
+    def _generate_sequence_from_components(self, x, e1, e2, e3, Omega, sigma, w, M, F):
         pass
 
     @abstractmethod
     def clone(self) -> 'FrameSequence':
         pass
-
+    
+    @abstractmethod
+    def __add__(self, FS) -> 'FrameSequence':
+        pass
+    
     @abstractmethod
     def __len__(self) -> int:
         pass
@@ -234,7 +238,7 @@ class FrameSequenceFenics(FrameSequence):
             model_parameters: 'MaterialParameters' = None):
                                           
         super().__init__(frames, x, e1, e2, e3, Omega, sigma, model_parameters)
-        
+                
         return
     
     
@@ -269,6 +273,8 @@ class FrameSequenceFenics(FrameSequence):
             for t in range(n_timesteps)
         ]
         
+        return frames
+        
     def clone(self) -> 'FrameSequence':
         
         return FrameSequenceFenics(
@@ -280,6 +286,12 @@ class FrameSequenceFenics(FrameSequence):
 
     def __len__(self) -> int:
         return len(self.frames)
+
+    def __add__(self, FS):        
+        self.frames = self.frames + FS.frames
+        
+        return self.clone()
+        
 
     def __getitem__(self, i) -> Frame:
         return self.frames[i]
@@ -368,6 +380,9 @@ class FrameSequenceNumpy(FrameSequence):
         return FrameSequenceNumpy(**args, 
                                   model_parameters=self.model_parameters,
                                   t_arr = self.t_arr)
+
+    def __add__(self) -> 'FrameSequenceNumpy':        
+        pass
         
     def __len__(self) -> int:
         return len(self.frames['x'])
