@@ -1151,6 +1151,119 @@ def plot_strains(
     fig.tight_layout()
     return fig
 
+def plot_controls_CS_vs_FS(
+        CS: Union[FrameSequenceNumpy, ControlSequenceNumpy],
+        FS: Union[FrameSequenceNumpy, ControlSequenceNumpy],
+        dt: float = None,
+        T_max = None
+) -> Figure:
+    """
+    Plot the sequence of alpha, beta and gamma over time.
+    """
+    if dt is not None and T_max is not None:    
+        n_timesteps = int(T_max/dt)
+    else:
+        n_timesteps = FS.n_timesteps
+
+    # Determine common scales    
+    o_min = np.zeros(3)
+    o_max = np.zeros(3)
+
+    s_min = np.zeros(3)
+    s_max = np.zeros(3)
+
+    Omega_FS_list = []
+    sigma_FS_list = []
+
+    Omega_CS_list = []
+    sigma_CS_list = []
+
+    # Omega and sigma vector have three coordinates
+    for i in range(3):
+                
+        oi_min = np.min([FS.Omega[:, i, :].min(), CS.Omega[:, i, :].min()])
+        oi_max = np.max([FS.Omega[:, i, :].max(), CS.Omega[:, i, :].max()])
+                        
+        si_min = np.min([FS.sigma[:, i, :].min(), CS.sigma[:, i, :].min()])
+        si_max = np.max([FS.sigma[:, i, :].max(), CS.sigma[:, i, :].max()])
+        
+        o_min[i] = oi_min
+        o_max[i] = oi_max
+        
+        s_min[i] = si_min
+        s_max[i] = si_max
+                    
+        Omega_FS_list.append(FS.Omega[:, i, :])
+        sigma_FS_list.append(FS.sigma[:, i, :])
+        
+        Omega_CS_list.append(CS.Omega[:, i, :])
+        sigma_CS_list.append(CS.sigma[:, i, :])
+                    
+
+    v_min = np.hstack((o_min, s_min))
+    v_max = np.hstack((o_max, s_max))
+    
+    M_FS_list = Omega_FS_list + sigma_FS_list
+    M_CS_list = Omega_CS_list + sigma_CS_list
+
+    fig, axes = plt.subplots(2, 6, figsize=(12, 7), squeeze=False)
+    
+    cmaps  = [plt.cm.BrBG, plt.cm.BrBG, plt.cm.PRGn, plt.cm.RdGy, plt.cm.RdGy, plt.cm.RdBu]
+    cbar_formats = ['%.4f', '%.4f', '%.3f', '%.2f', '%.2f', '%.2f']
+
+    for i, (M_FS, M_CS) in enumerate(zip(M_FS_list, M_CS_list)):
+                
+        ax_CS = axes[0, i]
+        ax_FS = axes[1, i]
+        
+        m = ax_FS.matshow(
+            M_FS.T,
+            cmap=cmaps[i],
+            clim=(v_min[i], v_max[i]),
+            norm=MidpointNormalize(midpoint=0, vmin=v_min[i], vmax= v_max[i]),
+            aspect='auto'
+        )
+
+        m = ax_CS.matshow(
+            M_CS.T,
+            cmap=cmaps[i],
+            clim=(v_min[i], v_max[i]),
+            norm=MidpointNormalize(midpoint=0, vmin=v_min[i], vmax= v_max[i]),
+            aspect='auto'
+        )
+
+        ax_CS.set_title([r'$\Omega^0_1$', r'$\Omega^0_2$', r'$\Omega^0_3$', r'$\sigma^0_1$', r'$\sigma^0_2$', r'$\sigma^0_3$'][i])        
+        ax_FS.set_title([r'$\Omega_1$', r'$\Omega_2$', r'$\Omega_3$', r'$\sigma_1$', r'$\sigma_2$', r'$\sigma_3$'][i])
+        
+        for ax in [ax_CS, ax_FS]:
+        
+            ax.text(-0.02, 1, 'H', transform=ax.transAxes, verticalalignment='top', horizontalalignment='right',
+                    fontweight='bold')
+            ax.text(-0.02, 0, 'T', transform=ax.transAxes, verticalalignment='bottom', horizontalalignment='right',
+                    fontweight='bold')
+    
+            ax.text(-0.02, 1, 'H', transform=ax.transAxes, verticalalignment='top', horizontalalignment='right',
+                    fontweight='bold')
+            ax.text(-0.02, 0, 'T', transform=ax.transAxes, verticalalignment='bottom', horizontalalignment='right',
+                    fontweight='bold')
+
+            if dt is not None:            
+                f_s = ("{:.%if}" % len(str(dt).split('.')[-1]))             
+                
+                ax.text(0, -0.01, '0', transform=ax.transAxes, verticalalignment='top', horizontalalignment='left',
+                        fontweight='bold')
+                ax.text(1, -0.01, f'{f_s.format(n_timesteps * dt)}s', transform=ax.transAxes, verticalalignment='top',
+                        horizontalalignment='right', fontweight='bold')
+        
+                fig.colorbar(m, ax=ax, format=cbar_formats[i])
+
+            ax.get_xaxis().set_ticks([])
+            ax.get_yaxis().set_ticks([])
+
+    fig.tight_layout()
+    
+    return fig
+
 
 def plot_FS_3d(
         FSs: List[FrameSequenceNumpy],
