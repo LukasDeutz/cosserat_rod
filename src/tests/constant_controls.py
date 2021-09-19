@@ -15,17 +15,17 @@ from cosserat_rod.solver import Solver
 # N_arr  = [50, 100, 250, 500]
 # dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 
-data_path = '../../data/tests/constant_controls/'
+data_path = '../../data/constant_controls/'
 fig_path = '../../fig/tests/constant_controls/'
 
 
-N_arr  = [50, 100, 250] 
+N_arr  = [50, 100, 250, 500] 
 dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 
 # N_arr  = [250] 
 # dt_arr = [1e-4]
 
-T = 2.0
+T = 2.5
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
 solver = Solver(linearization_method = 'picard_iteration')
@@ -101,9 +101,7 @@ def test_constant_controls():
     
     print('Finished all simulations!')
     
-    
-    
-def plot_elastic_energies(suffix = 'zero_sigma'):
+def plot_elastic_energies(stretch = True, shear = True):
 
     print('Plot elastic energies')
 
@@ -119,7 +117,7 @@ def plot_elastic_energies(suffix = 'zero_sigma'):
 
         for dt in dt_arr:
             
-            file_name = f'elastic_energies_{suffix}_N={N}_dt_{dt}.dat'
+            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}.dat'
             all_E = pickle.load(open(data_path + file_name, 'rb'))
             
             E = all_E['E']
@@ -133,7 +131,7 @@ def plot_elastic_energies(suffix = 'zero_sigma'):
             ax.legend(fontsize = lg_fz)
             plt.tight_layout()
         
-        fig.savefig(fig_path + f'elastic_energy_{suffix}_N={N}.pdf')
+        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_N={N}.pdf')
         plt.close(fig)
     
     # Plot for every fixed N, different dts    
@@ -145,7 +143,7 @@ def plot_elastic_energies(suffix = 'zero_sigma'):
 
         for N in N_arr:
             
-            file_name = f'elastic_energies_{suffix}_N={N}_dt_{dt}.dat'
+            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}.dat'
             all_E = pickle.load(open(data_path + file_name, 'rb'))
             
             E = all_E['E']
@@ -159,7 +157,7 @@ def plot_elastic_energies(suffix = 'zero_sigma'):
             ax.legend(fontsize = lg_fz)
             plt.tight_layout()
         
-        fig.savefig(fig_path + f'elastic_energy_{suffix}_dt={dt}.pdf')
+        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_dt={dt}.pdf')
         plt.close(fig)
                     
     print('Finished plotting!\n')
