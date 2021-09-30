@@ -18,13 +18,13 @@ from cosserat_rod.solver import Solver
 # N_arr  = [50, 100, 250, 500]
 # dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 
-data_path = '../../data/tests/constant_controls/'
+data_path = '../../data/constant_controls/'
 fig_path = '../../fig/constant_controls/'
 
 # N_arr  = [50, 100, 250, 500] 
 # dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 
-N_arr  = [50] 
+N_arr  = [250] 
 dt_arr = [1e-2]
 
 T = 2.5
@@ -193,8 +193,8 @@ def plot_elastic_energies(stretch = True, shear = True):
 
 if __name__ == '__main__':
         
-    test_constant_controls()
-    #plot_elastic_energies()
+    test_constant_controls(stretch = False, shear = True)
+    #plot_elastic_energies(stretch = True, shear = False)
     
         
 

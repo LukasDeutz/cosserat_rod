@@ -12,14 +12,13 @@ from cosserat_rod.plot3d import generate_interactive_scatter_clip, plot_strains
 from cosserat_rod.solver import Solver
 from cosserat_rod.controls import ControlsFenics, ControlSequenceFenics
 
-data_path = '../data/cosserat_worm/'
+data_path = '../../data/tests/'
 
 N  = 50
 dt = 0.01
-T = 2
+T = 0.75
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
-
 solver = Solver(linearization_method = 'picard_iteration')
 
 def test_zero_controls():
@@ -53,7 +52,7 @@ def test_zero_controls():
         
     return
 
-def test_constant_stretch():
+def test_constant_stretch(nu = 1.5, F0 = None, plot = False):
     
     print('Test constant stretch')
     
@@ -61,8 +60,7 @@ def test_constant_stretch():
 
     n = int(T/dt)
 
-
-    Omega_expr = Expression((f"0", "0", "0"), degree=1)
+    Omega_expr = Expression(("0", "0", "0"), degree=1)
         
     # shear angle in degree
     theta = 0.0
@@ -71,7 +69,7 @@ def test_constant_stretch():
     # Orientation in the e1-e2 plane
     phi = 0. 
     # Stretch ratio
-    nu = 1.5
+    nu = nu
             
     sigma_expr = Expression(('-nu*cos(phi)*sin(theta)', '-nu*sin(phi)*sin(theta)', '1 - nu*cos(theta)'), 
                             degree = 1,
@@ -88,18 +86,18 @@ def test_constant_stretch():
     C = ControlsFenics(Omega, sigma)
     CS = ControlSequenceFenics(C, n_timesteps = n)
         
-    FS = rod.solve(T, CS)
-    
-    FS = FS.to_numpy()
-    
-    plot_strains(FS, dt = dt)
-    plt.show()
-    
-    generate_interactive_scatter_clip(FS, fps = 100)
+    FS = rod.solve(T, CS, F0=F0)
 
+    if plot:
+        plot_strains(FS.to_numpy(), dt = dt)    
+        plt.show()
+        generate_interactive_scatter_clip(FS.to_numpy(), fps = 100)
+    
     print('Done!\n')
 
-def test_constant_shear():
+    return FS
+
+def test_constant_shear(phi = 0, F0 = None, plot = False):
     
     print('Test constant shear')
     
@@ -113,8 +111,8 @@ def test_constant_shear():
     theta = 30.0
     # convert into radian
     theta = theta/360 * 2 * np.pi        
-    # Orientation in the e1-e2 plane
-    phi = 0. 
+    # Orientation in the e1-e2 plane    
+    phi = phi
     # Stretch ratio
     nu = 1.0
         
@@ -133,72 +131,90 @@ def test_constant_shear():
     C = ControlsFenics(Omega, sigma)
     CS = ControlSequenceFenics(C, n_timesteps = n)
                 
-    FS = rod.solve(T, CS)
-    FS = FS.to_numpy()
+    FS = rod.solve(T, CS, F0=F0)
     
-    plot_strains(FS, dt = dt)
-    
-    generate_interactive_scatter_clip(FS, fps = 100)
+    if plot:    
+        plot_strains(FS.to_numpy(), dt = dt)
+        plt.show()
+        generate_interactive_scatter_clip(FS.to_numpy(), fps = 100)
 
     print('Done!\n')
     
-def test_constant_twist():
+    return FS
+    
+def test_constant_twist(F0 = None, plot = False):
     
     print('Test constant twitch')
     
     rod = Rod(N, dt, model_parameters, solver)
 
+    n = int(T/dt)
         
-    Ome3 = 2.*np.pi
+    Omega3 = 2.*np.pi
                                 
-    Omega = Expression(("0", "0", f"{Ome3}"), degree=1)
-    sigma = Expression(("0", "0", "0"), degree=1)
+    Omega_expr = Expression(("0", "0", f"Omega3"), degree=1, Omega3 = Omega3)
+    sigma_expr = Expression(("0", "0", "0"), degree=1)
+
+    Omega = Function(rod.function_spaces['Omega'])
+    Omega.assign(Omega_expr)
+    
+    sigma = Function(rod.function_spaces['sigma'])
+    sigma.assign(sigma_expr)
+
                 
-    CS['Omega'] = Omega
-    CS['sigma'] = sigma
+    C = ControlsFenics(Omega, sigma)
+    CS = ControlSequenceFenics(C, n_timesteps = n)
 
-    FS = rod.solve(T, CS)
+    FS = rod.solve(T, CS, F0 = F0)
 
-    FS = FS.to_numpy()
-
-    plot_strains(FS, dt = dt)
-    plt.show()
- 
-    generate_interactive_scatter_clip(FS, fps = 100)    
+    if plot:
+        plot_strains(FS.to_numpy(), dt = dt)
+        plt.show()     
+        generate_interactive_scatter_clip(FS.to_numpy(), fps = 100)    
    
     print('Done!\n')
     
-def test_constant_bend():
+    return FS
+    
+def test_constant_bend(bend_dir = 1, F0 = None, plot = False):
     
     print('Test constant bend')
     
     rod = Rod(N, dt, model_parameters, solver)
-
-
-    CS = {}
-
         
-    # Stretch or compression ratio
-    Ome1 = 2.*np.pi
+    # Curvature
+    Omega = 2.*np.pi
     # Pure axial stretch without shear
+    n = int(T/dt)
                                 
-    Omega = Expression((f"{Ome1}", "0", "0"), degree=1)
-    sigma = Expression(("0", "0", "0"), degree=1)
+    if bend_dir == 1:                                
+        Omega_expr = Expression(("Omega", "0", "0"), degree=1, Omega = Omega)
+    if bend_dir == 2:                                
+        Omega_expr = Expression(("0", "Omega", "0"), degree=1, Omega = Omega)
         
-    CS['Omega'] = Omega
-    CS['sigma'] = sigma
+    sigma_expr = Expression(("0", "0", "0"), degree=1)
 
-    FS = rod.solve(T, CS)
-    FS = FS.to_numpy()
+    Omega = Function(rod.function_spaces['Omega'])
+    Omega.assign(Omega_expr)
+    
+    sigma = Function(rod.function_spaces['sigma'])
+    sigma.assign(sigma_expr)
+        
+    C = ControlsFenics(Omega, sigma)
+    CS = ControlSequenceFenics(C, n_timesteps = n)
+
+    FS = rod.solve(T, CS, F0 = F0)
     
     # pickle.dump(FS, open(data_path + 'bending_test.dat', 'wb'))
 
-    plot_strains(FS, dt = dt)
-    plt.show()
-    
-    generate_interactive_scatter_clip(FS, fps = 100)    
+    if plot:
+        plot_strains(FS.to_numpy(), dt = dt)
+        plt.show()
+        generate_interactive_scatter_clip(FS.to_numpy(), fps = 100)    
     
     print('Done!\n')
+    
+    return FS
 
 def calc_strain_vector_for_constant_bend():
 
@@ -257,6 +273,101 @@ def calc_strain_vector_for_constant_bend():
 
     return
     
+def test_all(plot = False):
+    
+    rod = Rod(N, dt, model_parameters, solver)
+
+    n = int(T/dt)
+    
+    Omega_expr = Expression(('0', '0', '0'), degree = 1)
+    sigma_expr = Expression(('0', '0', '0'), degree = 1)
+        
+    Omega = Function(rod.function_spaces['Omega'])
+    Omega.assign(Omega_expr)
+    
+    sigma = Function(rod.function_spaces['sigma'])
+    sigma.assign(sigma_expr)
+    
+    C = ControlsFenics(Omega, sigma)
+    CS = ControlSequenceFenics(C, n_timesteps = n)
+    
+    # Pure stretch    
+    FS_all = test_constant_stretch(nu = 1.5)
+    
+    # Relaxation to zero controls    
+    F0 = FS_all[-1]    
+    FS = rod.solve(T, CS, F0=F0)    
+    
+    FS_all += FS
+    
+    #Pure compression
+    F0 = FS_all[-1]
+    FS = test_constant_stretch(0.5, F0)
+    FS_all += FS
+    
+    #Relaxation to zero controls    
+    F0 = FS_all[-1]
+    FS = rod.solve(T, CS, F0=F0)
+    FS_all += FS
+    
+    #Pure shear in e1 direction
+    F0 = FS_all[-1]
+    FS = test_constant_shear(phi=0, F0 = F0)
+    FS_all += FS
+
+    #Relaxation to zero controls    
+    F0 = FS_all[-1]
+    FS = rod.solve(T, CS, F0=F0)
+    FS_all += FS
+
+    #Pure shear in e2 direction
+    F0 = FS_all[-1]
+    FS = test_constant_shear(phi=np.pi/2, F0 = F0)
+    FS_all += FS
+
+    #Relaxation to zero controls    
+    F0 = FS_all[-1]
+    FS = rod.solve(T, CS, F0=F0)
+    FS_all += FS
+
+    #Pure bend in around e1
+    F0 = FS_all[-1]
+    FS = test_constant_bend(bend_dir = 1, F0 = F0)
+    FS_all += FS
+
+    #Relaxation to zero controls    
+    F0 = FS_all[-1]
+    FS = rod.solve(T, CS, F0=F0)
+    FS_all += FS
+
+    #Pure bend in around e2
+    F0 = FS_all[-1]
+    FS = test_constant_bend(bend_dir = 2, F0 = F0)
+    FS_all += FS
+
+    #Relaxation to zero controls    
+    F0 = FS_all[-1]
+    FS = rod.solve(T, CS, F0=F0)
+    FS_all += FS
+
+    #Pure twist
+    F0 = FS_all[-1]
+    FS = test_constant_twist(F0=F0)
+    FS_all += FS
+
+    #Relaxation to zero controls    
+    F0 = FS_all[-1]
+    FS = rod.solve(T, CS, F0=F0)
+    FS_all += FS
+                    
+    pickle.dump(FS_all.to_numpy(), open(data_path + 'all_controls_FS.dat', 'wb'))                                 
+    
+    if plot:    
+        generate_interactive_scatter_clip(FS_all.to_numpy(), 500)
+    
+    return
+    
+    
 if __name__ == '__main__':
     
     print('Run test for the cosserat rod \n')    
@@ -264,7 +375,8 @@ if __name__ == '__main__':
     #test_constant_stretch()    
     #test_constant_twist()        
     #test_constant_bend()
-    test_constant_shear()
+    #test_constant_shear()
+    test_all()
     
     #calc_strain_vector_for_constant_bend()
     

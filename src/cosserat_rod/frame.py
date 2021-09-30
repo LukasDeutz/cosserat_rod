@@ -80,7 +80,7 @@ class FrameFenics(Frame):
                                         
         return FrameFenics(**kwargs)
             
-    def update(self, x, e1, e2, e3, Omega, sigma, w, F = None, M = None, t = None):
+    def update(self, x, e1, e2, e3, Omega, sigma = None, w = None, F = None, M = None, t = None):
         
         self.x  = x
         self.e1 = e1
@@ -335,16 +335,26 @@ class FrameSequenceNumpy(FrameSequence):
             model_parameters: 'ModelParameters'= None,
             t_arr: np.array = None):
                 
-        super().__init__(frames, x, e1, e2, e3, Omega, sigma, model_parameters)
+        super().__init__(frames, x, e1, e2, e3, Omega, sigma, w, M, F, model_parameters)
         
         self.t_arr = t_arr
         
     def _generate_sequence_from_list(self, frames: List[FrameNumpy]) -> dict:
         n_timesteps = len(frames)
-        return {
-            k: np.stack([getattr(frames[t], k) for t in range(n_timesteps)])
-            for k in FRAME_KEYS
-        }
+        
+        kwargs = {}
+        
+        for key in FRAME_KEYS:                        
+            if getattr(self, key) is None:
+                kwargs[key] = None
+            else:                
+                kwargs[key] = np.stack([getattr(frames[t], key) for t in range(n_timesteps)])
+
+        kwargs['model_parameters'] = model_parameters
+        kwargs['t_arr'] = self.t_arr
+        
+        return kwargs
+        
         
     def _generate_sequence_from_components(
             self,

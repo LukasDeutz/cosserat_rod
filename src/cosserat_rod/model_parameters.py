@@ -12,9 +12,9 @@ class ModelParameters:
             K: Union[np.ndarray, float] = np.identity(3),
             K_rot: np.ndarray = np.identity(3),
             B: np.ndarray = np.identity(3),
-            B_ast: np.ndarray = np.zeros((3,3)),
+            B_tilde: np.ndarray = np.zeros((3,3)),
             S: np.ndarray = np.identity(3),
-            S_ast: np.ndarray = np.zeros((3,3)),
+            S_tilde: np.ndarray = np.zeros((3,3)),
             bc: bool = False
             
     ):
@@ -22,9 +22,9 @@ class ModelParameters:
         K: The external force exerted on the worm by the fluid.
         K_rot: The external moment.
         B: Bending/twist stiffness matrix 
-        B_ast: Bending/twist viscosity matrix
+        B_tilde: Bending/twist viscosity matrix
         S: Shear/stretch stiffness matrix
-        S_ast: Shear/stretch viscosity matrix 
+        S_tilde: Shear/stretch viscosity matrix 
         """
 
         self.external_force = external_force
@@ -39,16 +39,16 @@ class ModelParameters:
         self.K = K
         self.K_rot = K_rot
         self.B = B
-        self.B_ast = B_ast
+        self.B_tilde = B_tilde
         self.S = S
-        self.S_ast = S_ast
+        self.S_tilde = S_tilde
 
         self.bc = bc
 
         assert np.all(np.diag(self.K_rot) >= 0)
         assert np.all(np.diag(self.B) > 0)
-        assert np.all(np.diag(self.B_ast) >= 0)
+        assert np.all(np.diag(self.B_tilde) >= 0)
         assert np.all(np.diag(self.S) > 0)
-        assert np.all(np.diag(self.S_ast) >= 0)
+        assert np.all(np.diag(self.S_tilde) >= 0)
 
 
