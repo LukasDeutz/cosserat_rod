@@ -282,7 +282,7 @@ class FrameDiffArtist:
             )
 
 
-def plot_frame(worm: Rod, arrow_scale: float = 0.1) -> Figure:
+def plot_frame(F , arrow_scale: float = 0.1) -> Figure:
     """
     Single 3D frame plot with component arrows.
     """
@@ -293,7 +293,6 @@ def plot_frame(worm: Rod, arrow_scale: float = 0.1) -> Figure:
     cla(ax)
 
     # Add frame arrows and midline
-    F = worm.F.to_numpy()
     fa = FrameArtist(F, arrow_scale=arrow_scale)
     fa.add_component_vectors(ax)
     fa.add_midline(ax)
@@ -1206,7 +1205,7 @@ def plot_controls_CS_vs_FS(
     M_FS_list = Omega_FS_list + sigma_FS_list
     M_CS_list = Omega_CS_list + sigma_CS_list
 
-    fig, axes = plt.subplots(2, 6, figsize=(12, 7), squeeze=False)
+    fig, axes = plt.subplots(2, 6, figsize=(18, 7), squeeze=False)
     
     cmaps  = [plt.cm.BrBG, plt.cm.BrBG, plt.cm.PRGn, plt.cm.RdGy, plt.cm.RdGy, plt.cm.RdBu]
     cbar_formats = ['%.4f', '%.4f', '%.3f', '%.2f', '%.2f', '%.2f']
@@ -1247,6 +1246,8 @@ def plot_controls_CS_vs_FS(
             ax.text(-0.02, 0, 'T', transform=ax.transAxes, verticalalignment='bottom', horizontalalignment='right',
                     fontweight='bold')
 
+            fig.colorbar(m, ax=ax, format=cbar_formats[i])
+
             if dt is not None:            
                 f_s = ("{:.%if}" % len(str(dt).split('.')[-1]))             
                 
@@ -1255,7 +1256,6 @@ def plot_controls_CS_vs_FS(
                 ax.text(1, -0.01, f'{f_s.format(n_timesteps * dt)}s', transform=ax.transAxes, verticalalignment='top',
                         horizontalalignment='right', fontweight='bold')
         
-                fig.colorbar(m, ax=ax, format=cbar_formats[i])
 
             ax.get_xaxis().set_ticks([])
             ax.get_yaxis().set_ticks([])

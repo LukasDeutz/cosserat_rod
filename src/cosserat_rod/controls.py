@@ -84,7 +84,7 @@ class ControlsFenics(Controls):
         c2 = other.to_numpy()
         return c1 == c2
 
-    def to_numpy(self, worm) -> 'ControlsNumpy':
+    def to_numpy(self) -> 'ControlsNumpy':
                                                     
         return ControlsNumpy(
             Omega=f2n(self.Omega),
