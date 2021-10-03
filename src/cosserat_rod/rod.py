@@ -8,7 +8,6 @@ from scipy.sparse.linalg import gmres
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
 from cosserat_rod.frame import FrameFenics, FrameSequenceFenics
-from copy import deepcopy
 
 
 def grad(function): return Dx(function, 0)
@@ -37,7 +36,6 @@ class Rod():
         self._init_centerline()
         self._init_generalized_curvuture()
         self._init_strain_vector()
-        self._assign_initial_values()
         self._init_controls()
                 
         self._init_form()
@@ -46,18 +44,26 @@ class Rod():
     def _init_model_parameters(self):
         
         # Material parameters
-        if type(self.model_parameters.B) is np.ndarray:
+        if type(self.model_parameters.B) == np.ndarray:
             self.B = Constant(self.model_parameters.B)
-        
-        if type(self.model_parameters.S) is np.ndarray:        
-            self.S = Constant(self.model_parameters.S)
+        elif type(self.B) == Expression:            
+            self.B = self.model_parameters.B
             
-        if type(self.model_parameters.B_ast) is np.ndarray:
+        if type(self.model_parameters.S) == np.ndarray:        
+            self.S = Constant(self.model_parameters.S)
+        elif type(self.S) == Expression:
+            self.S = self.model_parameters.S
+            
+        if type(self.model_parameters.B_ast) == np.ndarray:
             self.B_ast = Constant(self.model_parameters.B_ast)
-        
-        if type(self.model_parameters.B_ast) is np.ndarray:
+        elif type(self.model_parameters.B_ast) == Expression:
+            self.B_ast = self.model_parameters.B_ast
+
+        if type(self.model_parameters.S_ast) == np.ndarray:
             self.S_ast = Constant(self.model_parameters.S_ast)
-        
+        elif type(self.model_parameters.S_ast) == Expression:
+            self.S_ast = self.model_parameters.S_ast
+                    
         # External moment
         self.K_rot = Constant(self.model_parameters.K_rot)
         
@@ -91,6 +97,8 @@ class Rod():
         self.function_spaces['sigma'] = self.V3
         self.function_spaces['e123']  = self.V3
     
+        self.u_n = Function(self.W)
+    
         return 
     
     def _init_global_frame(self):
@@ -100,9 +108,18 @@ class Rod():
         self.E3 = Constant((0, 0, 1))
 
         return
-        
-    def _init_local_reference_frame(self):
 
+    
+    def _init_local_reference_frame(self):
+        
+        self.e1 = Function(self.function_spaces['e123'])
+        self.e2 = Function(self.function_spaces['e123'])
+        self.e3 = Function(self.function_spaces['e123'])
+        
+        return
+    
+    def _init_local_frame_vectors(self):
+    
         e1_0_expr = Expression(('1', '0', '0'), degree=1)
         e2_0_expr = Expression(('0', '1', '0'), degree=1)
         e3_0_expr = Expression(('0', '0', '1'), degree=1)
@@ -161,43 +178,52 @@ class Rod():
         
         return
         
-    def _assign_initial_values(self):
+    def _assign_initial_values(self, F0, proj = False):
         
-        e1_0, e2_0, e3_0 = self._init_local_reference_frame()
+        fa = FunctionAssigner(self.W, self.VV)
+
+        self.e1.assign(F0.e1)
+        self.e2.assign(F0.e2)
+        self.e3.assign(F0.e3)
+
+        if not proj:                
+            x = F0.x
+            Omega = F0.Omega
+            sigma = F0.sigma
+            w = F0.w
+        else:
+            # TODO: Projects are needed if we pass initial frame 
+            # F0 to solve. Don't know why
+            x = project(F0.x, self.V3)
+            Omega = project(F0.Omega, self.function_spaces['Omega'])
+            sigma = project(F0.sigma, self.function_spaces['sigma'])
+            w = project(F0.w, self.V3)
+                        
+        #F, M, x, Ome, sig, w
+        fa.assign(self.u_n, 
+                  [Function(self.V3),
+                   Function(self.V3),
+                   x, 
+                   Omega, 
+                   sigma, 
+                   w]) 
+         
+        return
+
+    def _init_frame(self):
         
-        self.e1 = e1_0
-        self.e2 = e2_0
-        self.e3 = e3_0
-                                
+        e1_0, e2_0, e3_0 = self._init_local_frame_vectors()
+                                        
         x0   = self._init_centerline()    
         Ome0 = self._init_generalized_curvuture()
         sig0 = self._init_strain_vector()
         w0   = self._init_angular_velocity()
 
-        fa = FunctionAssigner(self.W, self.VV)
-
-        self.u_n = Function(self.W)
-                
-        #F, M, x, Ome, sig, w
-        fa.assign(self.u_n, 
-                  [Function(self.V3),
-                   Function(self.V3),
-                   x0, 
-                   Ome0, 
-                   sig0, 
-                   w0]) 
-                                
-        return
-
-    def _init_frame(self):
-        
-        _, _, x0, Ome0, sig0, w0 = self.u_n.split()
-
         F0 = FrameFenics(
             x = x0,
-            e1 = self.e1,
-            e2 = self.e2,
-            e3 = self.e3,
+            e1 = e1_0,
+            e2 = e2_0,
+            e3 = e3_0,
             Omega = Ome0,
             sigma = sig0,
             w = w0,
@@ -251,8 +277,9 @@ class Rod():
         
         return
         
-    def _init_form_for_picard(self):
-                
+    def _init_form_picard(self):
+        
+        
         # These are the functions from the previous time step which are used in the discretized 
         # time derivatives. They will not be updated during picard iteration!                
         self.x_tilde_n   = Function(self.V3)
@@ -276,10 +303,10 @@ class Rod():
 
         if self.model_parameters.external_force == 'linear_drag':            
             KK = self.K         
-        elif self.model_parameters.external_force == 'resistive_force':             
-            tautau = outer(tau_n, tau_n)
-            P = Identity(3) - tautau            
-            KK = self.K*P + tautau
+        elif self.model_parameters.external_force == 'resistive_force':                         
+            tautau_n = outer(tau_n, tau_n)
+            P_n = Identity(3) - tautau_n            
+            KK = self.K*P_n + tautau_n
 
         self.Q = outer(self.e1, self.E1) + outer(self.e2, self.E2) + outer(self.e3, self.E3)
        
@@ -306,12 +333,11 @@ class Rod():
     def _init_form(self):
 
         if self.solver.linearization_method == 'simple':
-            self._init_linearized_form()
+            self._init_form_simple()
         elif self.solver.linearization_method == 'picard_iteration':
-            self._init_form_for_picard()
+            self._init_form_picard()
         elif self.solver.linearization_method == 'newton':
-            pass
-                            
+            pass                            
         return
                                                                     
     def _init_boundary_conditions(self):
@@ -406,7 +432,12 @@ class Rod():
  
         if F0 is None:            
             F0 = self._init_frame()
-              
+            self._assign_initial_values(F0)        
+        else:
+            self._assign_initial_values(F0, proj= True)        
+
+        # Assign fenics functions stored in frame to u_n and e1,e2,e3
+      
         # Get inital w to update frame
         w = F0.w
         

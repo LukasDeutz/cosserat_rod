@@ -1,8 +1,9 @@
 # Build-in imports
 from os.path import abspath
+from itertools import product
 
 # Third party imports
-from fenics import Expression, sqrt, dot, assemble, dx, Function
+from fenics import Function, Expression, sqrt, dot, assemble, dx
 import numpy as np
 import pickle 
 import matplotlib.pyplot as plt
@@ -12,19 +13,26 @@ from cosserat_rod.controls import ControlsFenics, ControlSequenceFenics
 from cosserat_rod.rod import Rod, grad
 from cosserat_rod.model_parameters import ModelParameters
 from cosserat_rod.solver import Solver
-from cosserat_rod.plot3d import generate_interactive_scatter_clip, plot_strains
 
 
 # N_arr  = [50, 100, 250, 500]
 # dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
 
 data_path = '../../data/tests/constant_controls/'
-fig_path = '../../fig/tests/constant_controls/'
+fig_path = '../../fig/constant_controls/'
+
+# N_arr  = [50, 100, 250, 500] 
+# dt_arr = [1e-1, 1e-2, 1e-3, 1e-4]
+
+N_arr  = [50] 
+dt_arr = [1e-2]
+
+T = 2.5
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
 solver = Solver(linearization_method = 'picard_iteration')
 
-def calculate_elastic_energy(FS, CS, rod, stretch, shear):
+def calculate_elastic_energy(FS, CS, rod):
 
     print('Calculate elastic energy from simulation results.')
 
@@ -60,10 +68,7 @@ def calculate_elastic_energy(FS, CS, rod, stretch, shear):
     all_E['N']  = N
     all_E['dt'] = dt
     
-    stretch = str(stretch)[0]
-    shear   = str(shear)[0]
-     
-    file_path = data_path + f'elastic_energies_stretch={stretch}_shear={shear}_N={N}_dt_{dt}.dat'
+    file_path = data_path + f'elastic_energies_zero_sigma_N={N}_dt_{dt}.dat'
     
     pickle.dump(all_E, open(file_path, 'wb'))
     
@@ -71,18 +76,15 @@ def calculate_elastic_energy(FS, CS, rod, stretch, shear):
     
     return
 
-def test_constant_controls(N, dt, T, stretch = False, shear = False):
+def test_constant_controls(stretch = True, shear = True):
     
-    print(f'Simulate constant controls for N={N} and dt={dt}')
-            
-    n = int(T/dt)        
-    rod = Rod(N, dt, model_parameters = model_parameters, solver = solver)
-    
+    print('Test constant controls for different combinations of N and dt')
+
     Omega_expr = Expression(("2.0*sin(3*pi*x[0]/2)", 
                              "3.0*cos(3*pi*x[0]/2)",
                              "5.0*cos(2*pi*x[0])"), 
                              degree=1)    
-    
+
     if stretch:
         nu = Expression('1 + 0.5*cos(2*pi*pi*x[0])', degree = 1)        
     else:
@@ -91,8 +93,8 @@ def test_constant_controls(N, dt, T, stretch = False, shear = False):
         theta_max = 10.0/360 * 2 * np.pi        
         theta = Expression('theta_max*(1 - sin(2*pi*x[0]))', degree = 1, theta_max = theta_max)
         phi = Expression('2*pi*x[0]', degree = 1)        
-    else:   
-        phi = 0.0
+    else:           
+        phi = 0.0    
         theta = 0.0
     
     sigma_expr = Expression(('-nu*cos(phi)*sin(theta)', '-nu*sin(phi)*sin(theta)', '1 - nu*cos(theta)'), 
@@ -100,30 +102,35 @@ def test_constant_controls(N, dt, T, stretch = False, shear = False):
                        nu = nu,
                        phi = phi,
                        theta = theta)
-                            
-
+    
     if not stretch and not shear:
-        sigma_expr = Expression(('0', '0', '0'))
+        sigma_expr = Expression(('0', '0', '0'), degree = 1)
 
 
-    Omega = Function(rod.function_spaces['Omega'])
-    Omega.assign(Omega_expr)
-    
-    sigma = Function(rod.function_spaces['sigma'])
-    sigma.assign(sigma_expr)
+    for N, dt in product(N_arr, dt_arr):
+        print(f'Simulate constant controls for N={N} and dt={dt}')
+                
+        n = int(T/dt)        
+        rod = Rod(N, dt, model_parameters = model_parameters, solver = solver)
 
-    C = ControlsFenics(Omega, sigma)
-    CS = ControlSequenceFenics(C, n_timesteps=n)
+        Omega_pref = Function(rod.function_spaces['Omega'])
+        sigma_pref = Function(rod.function_spaces['sigma'])
+        
+        Omega_pref.assign(Omega_expr)
+        sigma_pref.assign(sigma_expr)
     
-    FS = rod.solve(T, CS)        
+        C = ControlsFenics(Omega_pref, sigma_pref)
+        CS = ControlSequenceFenics(C, n_timesteps=n)
+        
+        FS = rod.solve(T, CS)        
+        
+        print('Done!')
+        
+        calculate_elastic_energy(FS, CS, rod)
     
-    generate_interactive_scatter_clip(FS.to_numpy(), 200)    
-            
-    calculate_elastic_energy(FS, CS, rod, stretch, shear)
+    print('Finished all simulations!')
     
-    print('Finished simulation!')
-    
-def plot_elastic_energies(N_arr, dt_arr, suffix = 'zero_sigma'):
+def plot_elastic_energies(stretch = True, shear = True):
 
     print('Plot elastic energies')
 
@@ -139,7 +146,7 @@ def plot_elastic_energies(N_arr, dt_arr, suffix = 'zero_sigma'):
 
         for dt in dt_arr:
             
-            file_name = f'elastic_energies_{suffix}_N={N}_dt_{dt}.dat'
+            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}.dat'
             all_E = pickle.load(open(data_path + file_name, 'rb'))
             
             E = all_E['E']
@@ -153,7 +160,7 @@ def plot_elastic_energies(N_arr, dt_arr, suffix = 'zero_sigma'):
             ax.legend(fontsize = lg_fz)
             plt.tight_layout()
         
-        fig.savefig(fig_path + f'elastic_energy_{suffix}_N={N}.pdf')
+        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_N={N}.pdf')
         plt.close(fig)
     
     # Plot for every fixed N, different dts    
@@ -165,7 +172,7 @@ def plot_elastic_energies(N_arr, dt_arr, suffix = 'zero_sigma'):
 
         for N in N_arr:
             
-            file_name = f'elastic_energies_{suffix}_N={N}_dt_{dt}.dat'
+            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}.dat'
             all_E = pickle.load(open(data_path + file_name, 'rb'))
             
             E = all_E['E']
@@ -179,19 +186,14 @@ def plot_elastic_energies(N_arr, dt_arr, suffix = 'zero_sigma'):
             ax.legend(fontsize = lg_fz)
             plt.tight_layout()
         
-        fig.savefig(fig_path + f'elastic_energy_{suffix}_dt={dt}.pdf')
+        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_dt={dt}.pdf')
         plt.close(fig)
                     
     print('Finished plotting!\n')
 
 if __name__ == '__main__':
-
-    N = 50
-    dt = 1e-2
-    T = 3.0
-
-    test_constant_controls(N, dt, T, stretch = True, shear = True)
-    
+        
+    test_constant_controls()
     #plot_elastic_energies()
     
         
