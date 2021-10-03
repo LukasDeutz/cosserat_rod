@@ -1,7 +1,6 @@
-import argparse
-
 # Build-in imports
 from os.path import abspath
+import argparse
 
 # Third party imports
 from fenics import Function, Expression, sqrt, dot, assemble, dx
