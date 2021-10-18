@@ -342,7 +342,8 @@ def plot_frame_3d(
 def generate_interactive_scatter_clip(
         FS: FrameSequenceNumpy,
         fps: float,
-        show: bool = True
+        show: bool = True,
+        perspectives = {}
 ):
     """
     Generate an interactive video clip from a FrameSequence
@@ -350,9 +351,18 @@ def generate_interactive_scatter_clip(
     if show:
         interactive()
 
+    # Show from 3 different perspectives
+    if perspectives == 'yz':
+        perspectives = {'elev': 0, 'azim': 0}
+    elif perspectives == 'xz':
+        perspectives = {'elev': 0, 'azim': -90}
+    elif perspectives == 'xy':
+        perspectives = {'elev': 90, 'azim': -90}
+
+
     # Set up figure and 3d axes
     fig = plt.figure(facecolor='white', figsize=(12, 12))
-    ax = plt.axes([0.05, 0.15, 0.9, 0.80], projection='3d')
+    ax = plt.axes([0.05, 0.15, 0.9, 0.80], projection='3d', **perspectives)
     ax_slider = plt.axes([0.05, 0.02, 0.9, 0.03])
     mins, maxs = FS.get_bounding_box(zoom=1)
     cla(ax)
@@ -411,15 +421,13 @@ def generate_interactive_scatter_clip(
         plt.show()
 
     return ani
-
-
+    
 def generate_scatter_clip(
         clips: List[FrameSequenceNumpy],
         save_dir,
         save_fn=None,
         labels=None,
-        fps=FPS
-):
+        fps=FPS):
     """
     Generate a video clip from a list of FrameSequences
     """

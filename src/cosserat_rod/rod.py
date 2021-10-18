@@ -304,7 +304,10 @@ class Rod():
         if self.model_parameters.external_force == 'linear_drag':            
             KK = self.K         
         elif self.model_parameters.external_force == 'resistive_force':                         
+            
             tautau_n = outer(tau_n, tau_n)
+            #tautau_n = outer(self.e3, self.e3)
+            
             P_n = Identity(3) - tautau_n            
             KK = self.K*P_n + tautau_n
 
@@ -313,7 +316,7 @@ class Rod():
         dx = Measure('dx', self.mesh)
 
         eq_F = dot(F, phi_F) * dx - dot(self.S * (sig - self.sig_pref), phi_F) * dx - dot(self.S_ast * (sig - self.sig_tilde_n) / self.dt, phi_F) * dx
-        eq_M = dot(M, phi_M) * dx - dot(self.B * (Ome - self.Ome_pref), phi_M) * dx - dot(self.B_ast * (Ome - self.Ome_tilde_n) / self.dt, phi_M) * dx
+        eq_M = dot(M, phi_M) * dx - dot(self.B * (Ome - self.Ome_pref / xu_n), phi_M) * dx - dot(self.B_ast * (Ome - self.Ome_tilde_n) / self.dt, phi_M) * dx
                         
         eq_x   = dot(KK * (x - self.x_tilde_n), phi_x) / self.dt * xu_n * dx - dot(self.Q * F, grad(phi_x)) * dx        
         

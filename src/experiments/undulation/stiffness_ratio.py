@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 # Local imports
 from experiments.undulation.undulation import sim_undulation, initial_posture, data_path, fig_path
-from experiments.undulation.plot_undulation import plot_head_trajectory
+from experiments.undulation.plot_undulation import plot_head_trajectory, generate_undulation_interactive_video
 from cosserat_rod.controls import ControlsFenics, ControlSequenceFenics
 from cosserat_rod.rod import Rod
 from cosserat_rod.model_parameters import ModelParameters
@@ -24,6 +24,14 @@ from cosserat_rod.plot3d import plot_controls_CS_vs_FS
 
 data_path = data_path + 'stiffness_ratio/'
 fig_path = fig_path + 'stiffness_ratio/'
+
+def get_data(N, dt, T, c):
+    
+    filename = f'undulation_N={N}_dt={dt}_T={T}_c={c}.dat'    
+    data = pickle.load(open(data_path + filename, 'rb'))                                 
+    
+    return data
+    
 
 def undulation_parameter(A = 1.0, Q = 5.5):
     ''' 
@@ -41,10 +49,13 @@ def undulation_parameter(A = 1.0, Q = 5.5):
 def simulate_2d_undulations(C_arr, N = 50, dt = 0.01, T = 5.0):
 
     # model parameter
+    c_rot = 1.0
+    
     K = 40
-    B = np.identity(3)
-    B_ast = 0.1*B    
-    K_rot = B
+    K_rot = np.identity(3)
+    B = c_rot*np.identity(3)
+    
+    B_ast = 0.15*B
 
     model_parameters = ModelParameters(external_force = 'resistive_force', 
                                        K = K,
@@ -56,7 +67,7 @@ def simulate_2d_undulations(C_arr, N = 50, dt = 0.01, T = 5.0):
     # undulation parameters    
     Amp, k, w = undulation_parameter()
            
-    Omega_expr = Expression(("A*cos(k*x[0] - w*t)", 
+    Omega_expr = Expression(("A*sin(k*x[0] - w*t)", 
                              "0",
                              "0"), 
                              degree=1,
@@ -75,7 +86,7 @@ def simulate_2d_undulations(C_arr, N = 50, dt = 0.01, T = 5.0):
         print(f'Simulate undulation for stiffness ratio c={c}')
         
         S = c*B
-        S_ast = 0.1*S
+        S_ast = 0.0*S
         model_parameters.S = S
         model_parameters.S_ast = S_ast
                             
@@ -112,19 +123,53 @@ def plot_all_undulations(C_arr, N, dt, T):
         plt.close(fig)
 
     print(f'Finished!')    
-      
-    return
     
-      
+    return
+
+def plot_compare_trajectories(c_arr, N_arr, dt_arr):
+    
+    print('Compare head trajectories for fixed stifness ratio c and resolutions (N, dt)')
+        
+    for c in c_arr:
+        
+        fig = plt.figure()
+        ax = plt.subplot(111)
+
+        print(f'Plot figure to compare head trajectories for c = {c}')
+
+        for N, dt in zip(N_arr, dt_arr):
+            
+            filename = f'undulation_N={N}_dt={dt}_T={T}_c={c}.dat'    
+            data = pickle.load(open(data_path + filename, 'rb'))                                 
+        
+            # Get data     
+            FS = data['FS'] 
+            
+            plot_head_trajectory(FS, ax = ax)
+    
+        print('Done')
+    
+        plt.savefig(fig_path + f'head_trajectories_c={c}.pdf')
+        plt.close(fig)
+    
+    print('Finished!')
+          
 if __name__ == "__main__":
     
-    N = 100
-    dt = 0.001
+    N = 50
+    dt = 0.01
     T = 5
     
-    C_arr = [1.0, 2.5, 5.0]
+    C_arr = [2.5]
     
     simulate_2d_undulations(C_arr, N, dt, T)     
     plot_all_undulations(C_arr, N, dt, T)
     
+    FS = get_data(N, dt, T, C_arr[0])['FS']
+    generate_undulation_interactive_video(FS)
+    
+
+    # N_arr = [50, 100]
+    # dt_arr = [0.01, 0.001] 
+    #plot_compare_trajectories(C_arr, N_arr, dt_arr)    
     
