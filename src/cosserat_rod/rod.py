@@ -46,12 +46,12 @@ class Rod():
         # Material parameters
         if type(self.model_parameters.B) == np.ndarray:
             self.B = Constant(self.model_parameters.B)
-        elif type(self.B) == Expression:            
+        elif type(self.model_parameters.B) == Expression:            
             self.B = self.model_parameters.B
             
         if type(self.model_parameters.S) == np.ndarray:        
             self.S = Constant(self.model_parameters.S)
-        elif type(self.S) == Expression:
+        elif type(self.model_parameters.S) == Expression:
             self.S = self.model_parameters.S
             
         if type(self.model_parameters.B_ast) == np.ndarray:
@@ -73,6 +73,13 @@ class Rod():
         elif self.model_parameters.external_force == 'resistive_force': # K is a float
             self.K = self.model_parameters.K
         
+        # Only needed if inertia terms are included into the model
+        if self.model_parameters.inertia:
+            if type(self.model_parameters.J == np.ndarray):
+                self.J = Constant(self.model_parameters.J)
+            elif type(self.model_parameters.J) == Expression:
+                self.I = self.model_parameters.J
+        
         return
 
     def _init_function_space(self):
@@ -82,13 +89,15 @@ class Rod():
         P1 = FiniteElement('Lagrange', self.mesh.ufl_cell(), 1)
         P1_3 = MixedElement([P1] * 3) 
         
+        self.V = FunctionSpace(self.mesh, P1)
+        
         self.V3 = FunctionSpace(self.mesh, P1_3)  
         
         #F, M, x, Ome, sig, w         
-        self.VV = [self.V3, self.V3, self.V3, self.V3, self.V3, self.V3]         
+        self.VV = [self.V3]*7         
         
         #F, M, x, Ome, sig, w
-        self.W = FunctionSpace(self.mesh, MixedElement(6 * [P1_3]))
+        self.W = FunctionSpace(self.mesh, MixedElement(7 * [P1_3]))
         
         # Create function space dictionary for easier access
         self.function_spaces = {}
@@ -96,9 +105,23 @@ class Rod():
         self.function_spaces['Omega'] = self.V3
         self.function_spaces['sigma'] = self.V3
         self.function_spaces['e123']  = self.V3
-    
-        self.u_n = Function(self.W)
-    
+        
+        # The time derivatives in the equations of motions are approximated
+        # by finite backwards differences. Depending on the desired order 
+        # of accuracy, the backwards differences need to include N=max(ord1, ord2+1)
+        # previouse time points, where ord1 is the desired accuracy for the 
+        # first order time derivatives and ord2 is the accuracy of the second 
+        # order time derivatives.        
+        ord1 = self.solver.finite_difference_order[1]
+        
+        if self.model_parameters.inertia:        
+            ord2 = self.solver.finite_difference_order[2]
+            N = np.max([ord1, ord2+1])
+        else:
+            N = ord1
+                            
+        self.u_arr = [Function(self.W) for _ in range(N)]
+                       
         return 
     
     def _init_global_frame(self):
@@ -198,16 +221,19 @@ class Rod():
             Omega = project(F0.Omega, self.function_spaces['Omega'])
             sigma = project(F0.sigma, self.function_spaces['sigma'])
             w = project(F0.w, self.V3)
+        
+        for u_n in self.u_arr:
                         
-        #F, M, x, Ome, sig, w
-        fa.assign(self.u_n, 
-                  [Function(self.V3),
-                   Function(self.V3),
-                   x, 
-                   Omega, 
-                   sigma, 
-                   w]) 
-         
+            #K, F, M, x, Ome, sig, w
+            fa.assign(u_n, 
+                      [Function(self.V3),
+                       Function(self.V3),
+                       Function(self.V3),
+                       x, 
+                       Omega, 
+                       sigma, 
+                       w]) 
+                             
         return
 
     def _init_frame(self):
@@ -230,115 +256,124 @@ class Rod():
             t = 0.0)
                 
         return F0
+    
 
-    def _init_form_simple(self):
-                    
-        # Solution from previous time step        
-        _, _, x_n, Ome_n, _, _ = split(self.u_n)
+    def _init_first_time_derivatives(self, u, tau_h):
+
+        x_t   = self._finite_difference_approximation_first_derivative(u, 3)
+        Ome_t = self._finite_difference_approximation_first_derivative(u, 4)
+        sig_t = self._finite_difference_approximation_first_derivative(u, 5)
+        w_t   = self._finite_difference_approximation_first_derivative(u, 6)
+
+        xu_t  = dot(grad(x_t), tau_h)    
         
-        xu_n  = sqrt(inner(grad(x_n), grad(x_n))) # Length element
-        tau_n = grad(x_n) / xu_n # Unit tangent vector
-               
-        # Trial and test functions               
-        u = TrialFunction(self.W)
-        v = TestFunction(self.W)
-
-        F, M, x, Ome, sig, w = split(u)
-        phi_F, phi_M, phi_x, phi_Ome, phi_sig, phi_w = split(v)
-        
-        # External force
-        if self.model_parameters.external_force == 'linear_drag':            
-            KK = self.K         
-        elif self.model_parameters.external_force == 'resistive_force':             
-            tautau = outer(tau_n, tau_n)
-            P = Identity(3) - tautau            
-            KK = self.K*P + tautau
-
-        self.Q = outer(self.e1, self.E1) + outer(self.e2, self.E2) + outer(self.e3, self.E3)
-       
-        dx = Measure('dx', self.mesh)
-
-        eq_F = dot(F, phi_F) * dx - dot(self.S * (sig - self.sig_pref), phi_F) * dx - dot(self.S_ast * (sig - self.sig_n) / self.dt, phi_F) * dx
-        eq_M = dot(M, phi_M) * dx - dot(self.B * (Ome - self.Ome_pref), phi_M) * dx - dot(self.B_ast * (Ome - self.Ome_n) / self.dt, phi_M) * dx
+        return x_t, Ome_t, sig_t, w_t, xu_t
                         
-        eq_x   = dot(KK * (x - self.x_n), phi_x) / self.dt * xu_n * dx - dot(self.Q * F, grad(phi_x)) * dx        
+    def _finite_difference_approximation_first_derivative(self, u, idx):
+    
+        o1 = self.solver.finite_difference_order[1]
         
-        #eq_Ome = dot(-self.Q * self.K_rot * w, phi_Ome) * xu_n * dx + dot(cross(tau_n, self.Q * F), phi_Ome) * xu_n * dx - dot(self.Q * M, grad(phi_Ome)) * dx  
-        eq_Ome = dot(-self.K_rot * w, phi_Ome) * xu_n * dx + dot(cross(self.Q.T * tau_n, F), phi_Ome) * xu_n * dx + dot(cross(Ome_n, M), phi_Ome) * dx - dot(M, grad(phi_Ome)) * dx          
+        z = split(u)[idx]    
+        z_arr = [split(u_n)[idx] for u_n in self.u_arr]
         
-        eq_sig = dot(sig, phi_sig) * dx - dot(self.E3, phi_sig) * dx + dot(self.Q.T * grad(x), phi_sig) / self.xu_0 * dx                 
+        if o1 == 1:                
+            z_t = (-1*z_arr[-1] + 1*z) / self.dt
+        elif o1 == 2:
+            z_t = (1*z_arr[-2] - 4*z_arr[-1] + 3*z) / (2*self.dt)
+        elif o1 == 3:
+            z_t = (-2*z_arr[-3] + 9*z_arr[-2] - 18*z_arr[-1] + 11*z) / (6*self.dt)
+        elif o1 == 4:
+            z_t = (3*z_arr[-4] - 16*z_arr[-3] + 36*z_arr[-2] - 48*z_arr[-1] + 25*z)  / (12*self.dt)
+        elif o1 == 5:
+            z_t = (-12*z_arr[-5] + 75*z_arr[-4] - 200*z_arr[-3] + 300*z_arr[-2] -300*z_arr[-1] + 137*z)  / (60*self.dt)
         
-        eq_w = dot(grad(w) / xu_n - (Ome - self.Ome_n) / self.dt - cross(w, Ome_n), phi_w) * dx \
-              - dot(dot(grad(x) - grad(self.x_n), tau_n) / (self.dt * xu_n) * Ome_n, phi_w) * dx
+        return z_t
+    
+    def _finite_difference_approximation_second_derivative(self, u, idx):
+            
+        o2 = self.solver.finite_difference_order[2]
+    
+        z = split(u)[idx]    
+        z_arr = [split(u_n)[idx] for u_n in self.u_arr]
         
-        EQ = eq_F + eq_M + eq_x + eq_Ome + eq_sig + eq_w 
+        if o2 == 1:                
+            z_tt = (1*z_arr[-2] - 2*z_arr[-1] + 1*z) / self.dt**2
+        elif o2 == 2:
+            z_tt = (-1*z_arr[-3] + 4*z_arr[-2] - 5*z_arr[-1] + 2*z) / self.dt**2
+        elif o2 == 3:
+            z_tt = (11*z_arr[-4] - 56*z_arr[-3] + 114*z_arr[-2] - 104*z_arr[-1] + 35*z) / (12*self.dt**2)
+        elif o2 == 4:
+            z_tt = (-10*z_arr[-5] + 61*z_arr[-4] - 156*z_arr[-3] + 214*z_arr[-2] - 154*z_arr[-1] + 45*z) / (12*self.dt**2)
+        elif o2 == 5:
+            z_tt = (137*z_arr[-6] - 972*z_arr[-5] + 2970*z_arr[-4] - 5080*z_arr[-3] + 5265*z_arr[-2] - 3132*z_arr[-1] + 812*z)  / (180*self.dt**2)
         
-        self.F_op, self.L = lhs(EQ), rhs(EQ)
-        
-        return
-        
-    def _init_form_picard(self):
-        
-        
-        # These are the functions from the previous time step which are used in the discretized 
-        # time derivatives. They will not be updated during picard iteration!                
-        self.x_tilde_n   = Function(self.V3)
-        self.sig_tilde_n = Function(self.V3) 
-        self.Ome_tilde_n = Function(self.V3)
-        
-        # Update approximation of functions at the current time step to be the solution 
-        # of the last iteration step in the picard iteration
-        _, _, x_n, Ome_n, _, _ = split(self.u_n)
+        return z_tt
+                                       
+    def _init_form(self):
                 
-        xu_n  = sqrt(inner(grad(x_n), grad(x_n)))
-        tau_n = grad(x_n) / xu_n
+        # Update approximation of functions at the current time step to be the solution 
+        # of the last iteration step in the picard iteration  
+        
+        if self.solver.linearization_method == 'simple':        
+            self.u_h = self.u_arr[-1]
+        elif self.solver.linearization_method == 'picard_iteration':
+            self.u_h = Function(self.W) 
+                                                              
+        _, _, _, x_h, Ome_h, _, w_h = split(self.u_h) # u_head
+                                                              
+        xu_h  = sqrt(inner(grad(x_h), grad(x_h)))
+        tau_h = grad(x_h) / xu_h
+        mu_h = xu_h/self.xu_0 # stretch/compression ratio
                
         # Trial and test function
         u = TrialFunction(self.W)
         v = TestFunction(self.W)
 
-        F, M, x, Ome, sig, w = split(u)
-        phi_F, phi_M, phi_x, phi_Ome, phi_sig, phi_w = split(v)
+        K, F, M, x, Ome, sig, w = split(u)
+        phi_K, phi_F, phi_M, phi_x, phi_Ome, phi_sig, phi_w = split(v)
         
-
         if self.model_parameters.external_force == 'linear_drag':            
-            KK = self.K         
+            KK_h = self.K         
         elif self.model_parameters.external_force == 'resistive_force':                         
-            tautau_n = outer(tau_n, tau_n)
-            P_n = Identity(3) - tautau_n            
-            KK = self.K*P_n + tautau_n
+            # The scalar K is the ratio between normal and tangential drift coefficient
+            tautau_h = outer(tau_h, tau_h)                        
+            KK_h = tautau_h + self.K*(Identity(3) - tautau_h)
+
+        if self.model_parameters.inertia:
+            rho = self.model_parameters.rho
 
         self.Q = outer(self.e1, self.E1) + outer(self.e2, self.E2) + outer(self.e3, self.E3)
        
         dx = Measure('dx', self.mesh)
 
-        eq_F = dot(F, phi_F) * dx - dot(self.S * (sig - self.sig_pref), phi_F) * dx - dot(self.S_ast * (sig - self.sig_tilde_n) / self.dt, phi_F) * dx
-        eq_M = dot(M, phi_M) * dx - dot(self.B * (Ome - self.Ome_pref), phi_M) * dx - dot(self.B_ast * (Ome - self.Ome_tilde_n) / self.dt, phi_M) * dx
-                        
-        eq_x   = dot(KK * (x - self.x_tilde_n), phi_x) / self.dt * xu_n * dx - dot(self.Q * F, grad(phi_x)) * dx        
+        x_t, Ome_t, sig_t, w_t, xu_t = self._init_first_time_derivatives(u, tau_h)
+                    
+        if self.model_parameters.inertia:
+            # second derivative
+            x_tt = self._finite_difference_approximation_second_derivative(u, 3)
+                                                                                                                                        
+        eq_K = dot(K, phi_K) * dx - dot(KK_h * x_t, phi_K) * dx         
+        eq_F = dot(F, phi_F) * dx - dot(self.S * (sig - self.sig_pref), phi_F) * dx - dot(self.S_ast * sig_t, phi_F) * dx
+        eq_M = dot(M, phi_M) * dx - dot(self.B * (Ome - self.Ome_pref), phi_M) * dx - dot(self.B_ast * Ome_t, phi_M) * dx
+                                    
+        if not self.model_parameters.inertia:                        
+            eq_x   = dot(K, phi_x) * xu_h * dx - dot(self.Q * F, grad(phi_x)) * dx        
+            eq_Ome = dot(-self.K_rot * w, phi_Ome) * xu_h * dx + dot(cross(self.Q.T * tau_h, F), phi_Ome) * xu_h * dx + dot(cross(Ome_h, M), phi_Ome) * dx - dot(M, grad(phi_Ome)) * dx          
+            #eq_Ome = dot(-self.Q * self.K_rot * w, phi_Ome) * xu_h * dx + dot(cross(tau_n, self.Q * F), phi_Ome) * xu_h * dx - dot(self.Q * M, grad(phi_Ome)) * dx  
         
-        #eq_Ome = dot(-self.Q * self.K_rot * w, phi_Ome) * xu_n * dx + dot(cross(tau_n, self.Q * F), phi_Ome) * xu_n * dx - dot(self.Q * M, grad(phi_Ome)) * dx  
-        eq_Ome = dot(-self.K_rot * w, phi_Ome) * xu_n * dx + dot(cross(self.Q.T * tau_n, F), phi_Ome) * xu_n * dx + dot(cross(Ome_n, M), phi_Ome) * dx - dot(M, grad(phi_Ome)) * dx          
-        
+        else:                                                
+            eq_x   = dot(K, phi_x) * xu_h * dx - dot(self.Q * F, grad(phi_x)) * dx - rho * dot(x_tt, phi_x)  * self.xu_0 * dx                          
+            eq_Ome = - dot(self.K_rot * w, phi_Ome) * xu_h * dx - dot(M, grad(phi_Ome)) * dx + dot(cross(Ome_h, M), phi_Ome) * xu_h * dx  + dot(cross(self.Q.T * tau_h, F), phi_Ome) * xu_h * dx \
+                   + 1 / mu_h * dot(cross(self.J * w_h, w), phi_Ome) * self.xu_0 * dx + 1 / mu_h**2 * dot(self.J * w_h, phi_Ome) * xu_t * dx \
+                   - 1 / mu_h * dot(self.J * w_t, phi_Ome) * self.xu_0 * dx
+                                                          
         eq_sig = dot(sig, phi_sig) * dx - dot(self.E3, phi_sig) * dx + dot(self.Q.T * grad(x), phi_sig) / self.xu_0 * dx                 
         
-        eq_w = dot(grad(w) / xu_n - (Ome - self.Ome_tilde_n) / self.dt - cross(w, Ome_n), phi_w) * dx \
-              - dot(dot(grad(x) - grad(self.x_tilde_n), tau_n) / (self.dt * xu_n) * Ome_n, phi_w) * dx
+        eq_w = dot(grad(w) / xu_h - Ome_t - cross(w, Ome_h), phi_w) * dx - dot(xu_t / xu_h * Ome_h, phi_w) * dx
         
-        EQ = eq_F + eq_M + eq_x + eq_Ome + eq_sig + eq_w 
+        EQ = eq_K + eq_F + eq_M + eq_x + eq_Ome + eq_sig + eq_w 
         
         self.F_op, self.L = lhs(EQ), rhs(EQ)
-
-
-    def _init_form(self):
-
-        if self.solver.linearization_method == 'simple':
-            self._init_form_simple()
-        elif self.solver.linearization_method == 'picard_iteration':
-            self._init_form_picard()
-        elif self.solver.linearization_method == 'newton':
-            pass                            
-        return
                                                                     
     def _init_boundary_conditions(self):
         
@@ -386,22 +421,13 @@ class Rod():
         
         u = Function(self.W)
         eps = 1.0
-        tol = self.solver.method_parameters['tol']
-        maxiter = self.solver.method_parameters['maxiter']
-        _ord = self.solver.method_parameters['ord']
+        tol = self.solver.linearization_parameters['tol']
+        maxiter = self.solver.linearization_parameters['maxiter']
+        _ord = self.solver.linearization_parameters['ord']
 
-        # Update functions from the previous time which are used in the discretized version 
-        # of the time derivatives. These will not be updated during picard iteration!         
-        _, _, x_tilde_n, Ome_tilde_n, sig_tilde_n, _ = split(self.u_n)
-        
-        x_tilde_n   = project(x_tilde_n, self.V3)
-        Ome_tilde_n = project(Ome_tilde_n, self.V3)
-        sig_tilde_n = project(sig_tilde_n, self.V3)
-                
-        self.x_tilde_n.assign(x_tilde_n)
-        self.Ome_tilde_n.assign(Ome_tilde_n)
-        self.sig_tilde_n.assign(sig_tilde_n)
-        
+        # Approximate u_head by the solution from the previous time step 
+        self.u_h.assign(self.u_arr[-1])
+                                
         _iter = 0
                         
         print('Start picard iteration')
@@ -409,12 +435,12 @@ class Rod():
         while eps > tol and _iter < maxiter:
 
             solve(self.F_op == self.L, u, solver_parameters = self.solver.fenics_solver, bcs=self.bc)
-            diff = u.vector().get_local() - self.u_n.vector().get_local()
+            diff = u.vector().get_local() - self.u_h.vector().get_local()
             eps = np.linalg.norm(diff, ord = _ord)
             
             _iter += 1
             
-            self.u_n.assign(u)
+            self.u_h.assign(u)
                                             
         if _iter < maxiter:
             print(f'Picard iteration converged after {_iter} iterations: norm={eps}')             
@@ -423,7 +449,7 @@ class Rod():
             
         return u    
                                 
-    def solve(self, T, CS, F0 = None):
+    def solve(self, T, CS, F0 = None, cb = None):
 
         self.t = 0.0
         self.n_timesteps = int(T / self.dt) 
@@ -470,14 +496,22 @@ class Rod():
             elif self.solver.linearization_method == 'picard_iteration':
                 u = self._solve_picard_iteration()
 
-            _, _, x, Ome, sig, w = u.split()
+            self.check_for_nans(u)
 
-            self.u_n.assign(u) 
-            self.check_for_nans()
+            _, _, _, x, Ome, sig, w = u.split()
 
+            # Update u
+            for n, u_n in enumerate(self.u_arr[:-1]):
+                u_n.assign(self.u_arr[n+1])
+            
+            self.u_arr[-1].assign(u)                                                                                           
+            
             # Update frame 
             self.F.update(x, self.e1, self.e2, self.e3, Ome, sig, w, t = self.t)
             FS.append(self.F.clone())
+            
+            if cb is not None:
+                cb(self.F)
             
             print(f't={f_s.format(self.t)}')
 
@@ -485,11 +519,11 @@ class Rod():
         
         return FS
 
-    def check_for_nans(self):
+    def check_for_nans(self, u):
         
-        f_names = ['F', 'M', 'x', 'Ome', 'sig', 'w']
+        f_names = ['K', 'F', 'M', 'x', 'Ome', 'sig', 'w']
         
-        for i, f in enumerate(split(self.u_n)):
+        for i, f in enumerate(split(u)):
             
             f = project(f, self.V3)
             

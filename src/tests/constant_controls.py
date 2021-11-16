@@ -30,7 +30,9 @@ dt_arr = [1e-2]
 T = 2.5
 
 model_parameters = ModelParameters(external_force = 'linear_drag', B_ast = 0.1*np.identity(3), S_ast = 0.1*np.identity(3))
-solver = Solver(linearization_method = 'picard_iteration')
+
+discretization_scheme = {'order': 2}
+solver = Solver(linearization_method = 'picard_iteration', discretization_scheme=discretization_scheme)
 
 def calculate_elastic_energy(FS, CS, rod):
 
@@ -68,14 +70,8 @@ def calculate_elastic_energy(FS, CS, rod):
     all_E['N']  = N
     all_E['dt'] = dt
     
-    file_path = data_path + f'elastic_energies_zero_sigma_N={N}_dt_{dt}.dat'
-    
-    pickle.dump(all_E, open(file_path, 'wb'))
-    
-    print(f'Done!: Save file to {abspath(file_path)} \n')
-    
-    return
-
+    return all_E
+        
 def test_constant_controls(stretch = True, shear = True):
     
     print('Test constant controls for different combinations of N and dt')
@@ -119,14 +115,21 @@ def test_constant_controls(stretch = True, shear = True):
         Omega_pref.assign(Omega_expr)
         sigma_pref.assign(sigma_expr)
     
-        C = ControlsFenics(Omega_pref, sigma_pref)
+        C  = ControlsFenics(Omega_pref, sigma_pref)
         CS = ControlSequenceFenics(C, n_timesteps=n)
         
         FS = rod.solve(T, CS)        
+                
+        all_E = calculate_elastic_energy(FS, CS, rod)
+
+        file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}_T={T}.dat'
         
-        print('Done!')
-        
-        calculate_elastic_energy(FS, CS, rod)
+        file_path = data_path + file_name
+                
+        pickle.dump(all_E, open(file_path, 'wb'))
+    
+        print(f'Done!: Save file to {abspath(file_path)} \n')
+
     
     print('Finished all simulations!')
     
@@ -146,7 +149,7 @@ def plot_elastic_energies(stretch = True, shear = True):
 
         for dt in dt_arr:
             
-            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}.dat'
+            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}_T={T}.dat'
             all_E = pickle.load(open(data_path + file_name, 'rb'))
             
             E = all_E['E']
@@ -160,7 +163,7 @@ def plot_elastic_energies(stretch = True, shear = True):
             ax.legend(fontsize = lg_fz)
             plt.tight_layout()
         
-        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_N={N}.pdf')
+        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_N={N}_T={T}.pdf')
         plt.close(fig)
     
     # Plot for every fixed N, different dts    
@@ -172,7 +175,7 @@ def plot_elastic_energies(stretch = True, shear = True):
 
         for N in N_arr:
             
-            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}.dat'
+            file_name = f'elastic_energies_stretch={str(stretch)[0]}_shear={str(shear)[0]}_N={N}_dt_{dt}_T={T}.dat'
             all_E = pickle.load(open(data_path + file_name, 'rb'))
             
             E = all_E['E']
@@ -186,7 +189,7 @@ def plot_elastic_energies(stretch = True, shear = True):
             ax.legend(fontsize = lg_fz)
             plt.tight_layout()
         
-        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_dt={dt}.pdf')
+        fig.savefig(fig_path + f'elastic_energy_stretch={str(stretch)[0]}_shear_{str(shear)[0]}_dt={dt}_T={T}.pdf')
         plt.close(fig)
                     
     print('Finished plotting!\n')
@@ -194,7 +197,7 @@ def plot_elastic_energies(stretch = True, shear = True):
 if __name__ == '__main__':
         
     test_constant_controls()
-    #plot_elastic_energies()
+    plot_elastic_energies()
     
         
 

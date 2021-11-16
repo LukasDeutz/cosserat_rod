@@ -15,18 +15,23 @@ class ModelParameters:
             B_ast: np.ndarray = np.zeros((3,3)),
             S: np.ndarray = np.identity(3),
             S_ast: np.ndarray = np.zeros((3,3)),
-            bc: bool = False
-            
+            bc: bool = False,
+            inertia: bool = False,
+            rho: float = 1.0,
+            J: np.ndarray = np.identity(3)
     ):
         """
-        K: The external force exerted on the worm by the fluid.
+        external_force: force exerted on the worm by the fluid, can be set to linear_drag or resistive_force
+        K: External force amplitude 
         K_rot: The external moment.
         B: Bending/twist stiffness matrix 
         B_ast: Bending/twist viscosity matrix
         S: Shear/stretch stiffness matrix
         S_ast: Shear/stretch viscosity matrix 
+        inertia: if True, then the inertia terms are included into the model
+        rho: Mass-Density
         """
-
+        
         self.external_force = external_force
 
         assert external_force in ['linear_drag', 'resistive_force']
@@ -44,11 +49,20 @@ class ModelParameters:
         self.S_ast = S_ast
 
         self.bc = bc
-
+        
+        # Inertia
+        self.inertia = inertia                        
+        self.rho = rho
+        self.J = J
+                    
         assert np.all(np.diag(self.K_rot) >= 0)
         assert np.all(np.diag(self.B) > 0)
         assert np.all(np.diag(self.B_ast) >= 0)
         assert np.all(np.diag(self.S) > 0)
         assert np.all(np.diag(self.S_ast) >= 0)
+        assert np.all(np.diag(self.J) >= 0)        
+        assert rho >= 0
+        
+
 
 
